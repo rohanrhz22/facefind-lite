@@ -44,6 +44,9 @@
   .thumbs img{width:62px;height:62px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
   .preview{margin-top:14px;display:none}
   .preview img{max-height:160px;border-radius:12px;border:1px solid var(--line)}
+  .cam{margin-top:14px;display:none}
+  .cam video{width:100%;max-height:240px;border-radius:12px;border:1px solid var(--line);
+    background:#000;transform:scaleX(-1)}
   .results{margin-top:26px}
   .results h2{font-size:20px;border-bottom:1px solid var(--line);padding-bottom:10px}
   .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px;margin-top:16px}
@@ -125,6 +128,16 @@
         <div style="font-size:12px;margin-top:4px">One face works best</div>
         <input type="file" id="selInput" accept="image/*">
       </label>
+      <div class="row" style="margin-top:10px">
+        <button class="ghost" id="camBtn" type="button">📷 Use camera</button>
+      </div>
+      <div class="cam" id="camWrap">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <div class="row">
+          <button id="camShot" type="button">Capture</button>
+          <button class="ghost" id="camCancel" type="button">Cancel</button>
+        </div>
+      </div>
       <div class="preview" id="selPreview"><img id="selImg" alt="selfie preview"></div>
       <div style="margin-top:14px">
         <label style="font-size:13px;color:var(--muted);display:flex;justify-content:space-between">
@@ -235,12 +248,58 @@ setupDrop($("galDrop"), $("galInput"), files=>{
 });
 
 setupDrop($("selDrop"), $("selInput"), files=>{
-  selfieFile = files.find(f=>f.type.startsWith("image/")) || null;
-  if(selfieFile){
-    $("selImg").src = URL.createObjectURL(selfieFile);
-    $("selPreview").style.display="block";
-    $("selBtn").disabled=false;
+  const f = files.find(f=>f.type.startsWith("image/")) || null;
+  if(f) setSelfie(f);
+});
+
+function setSelfie(file){
+  selfieFile = file;
+  $("selImg").src = URL.createObjectURL(file);
+  $("selPreview").style.display="block";
+  $("selBtn").disabled=false;
+}
+
+// --- Webcam selfie capture ---
+let camStream = null;
+function stopCam(){
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  $("camWrap").style.display="none";
+}
+$("camBtn").addEventListener("click", async ()=>{
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    $("selStatus").className="status err";
+    $("selStatus").textContent="Camera not supported on this browser.";
+    return;
   }
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"user", width:{ideal:1280}, height:{ideal:960}}, audio:false});
+    const v = $("camVideo");
+    v.srcObject = camStream;
+    $("camWrap").style.display="block";
+    $("selStatus").textContent="";
+  }catch(e){
+    $("selStatus").className="status err";
+    $("selStatus").textContent = e.name==="NotAllowedError"
+      ? "Camera permission denied. Allow access and retry."
+      : "Could not open camera: "+e.message;
+  }
+});
+$("camCancel").addEventListener("click", stopCam);
+$("camShot").addEventListener("click", ()=>{
+  const v = $("camVideo");
+  if(!v.videoWidth){ return; }
+  const canvas = document.createElement("canvas");
+  canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+  const ctx = canvas.getContext("2d");
+  // Un-mirror: the preview is flipped for UX, capture the true (unflipped) frame.
+  ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(blob=>{
+    if(!blob) return;
+    const file = new File([blob], "camera-selfie.jpg", {type:"image/jpeg", lastModified:Date.now()});
+    setSelfie(file);
+    stopCam();
+  }, "image/jpeg", 0.9);
 });
 
 async function refreshStats(){
