@@ -46,6 +46,8 @@ FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 MAX_FILE_MB = float(os.environ.get("FACEFIND_MAX_FILE_MB", "15"))
 MAX_FILES_PER_REQUEST = int(os.environ.get("FACEFIND_MAX_FILES", "30"))
 MAX_FILE_BYTES = int(MAX_FILE_MB * 1024 * 1024)
+# Hard cap on the decoded image's long side (memory safety on small instances).
+MAX_DECODE_DIM = int(os.environ.get("FACEFIND_MAX_DECODE_DIM", "1600"))
 ALLOWED_ORIGINS = [o.strip() for o in
                    os.environ.get("FACEFIND_ALLOWED_ORIGINS", "*").split(",")
                    if o.strip()]
@@ -85,15 +87,31 @@ def _startup() -> None:
 
 
 def _read_image(data: bytes) -> np.ndarray:
-    """Decode arbitrary image bytes into a BGR ndarray (EXIF-aware)."""
+    """Decode arbitrary image bytes into a BGR ndarray (EXIF-aware).
+
+    Downscales very large images *before* building the full pixel array so a
+    huge phone photo can't blow the (small) free-tier memory budget and crash
+    the worker. The detector normalizes to <=1280 internally, so capping the
+    long side at ~1600px keeps faces sharp while staying memory-safe.
+    """
     try:
         img = Image.open(io.BytesIO(data))
+        # Let the JPEG decoder shrink while decoding (cheap + low memory).
+        try:
+            img.draft("RGB", (MAX_DECODE_DIM, MAX_DECODE_DIM))
+        except Exception:  # noqa: BLE001  (non-JPEG: draft is a no-op)
+            pass
+        # Downscale before converting so a huge PNG can't blow memory either.
+        if max(img.size) > MAX_DECODE_DIM:
+            img.thumbnail((MAX_DECODE_DIM, MAX_DECODE_DIM), Image.LANCZOS)
         img = img.convert("RGB")
-        # Respect EXIF orientation.
         from PIL import ImageOps
+        # Respect EXIF orientation.
         img = ImageOps.exif_transpose(img)
         rgb = np.asarray(img)
         return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    except HTTPException:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"Invalid image: {exc}")
 

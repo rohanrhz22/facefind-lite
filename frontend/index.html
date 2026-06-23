@@ -150,6 +150,11 @@
   .strip{align-items:flex-start;justify-content:center;overflow:auto}
   .strip .stripinner{max-width:1000px;width:100%;margin:48px auto;padding:0 8px}
   .strip .x{position:fixed;top:20px;right:26px}
+  /* suppress browser autofill blue on inputs */
+  input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{
+    -webkit-text-fill-color:var(--text);
+    -webkit-box-shadow:0 0 0 1000px rgba(255,255,255,.85) inset;
+    caret-color:var(--text);transition:background-color 9999s ease-out 0s}
 </style>
 </head>
 <body>
@@ -290,7 +295,7 @@
   <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span>Admin token (for delete/reset when server is protected):</span>
     <input id="adminTok" type="password" placeholder="leave blank in dev"
-      style="background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:6px 10px;font:inherit;min-width:200px">
+      style="background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:8px 12px;font:inherit;min-width:200px">
   </div>
 </footer>
 
