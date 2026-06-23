@@ -190,6 +190,33 @@ function adminHeaders(){
 }
 let galleryFiles = [], selfieFile = null, lastMatchIds = [];
 
+// Downscale/compress large images in the browser before upload.
+// Caps the longest side at 1600px (the server normalizes to <=1280 for
+// detection anyway, so faces stay sharp) and re-encodes as high-quality JPEG.
+// This avoids out-of-memory crashes on the free-tier server with huge photos.
+const MAX_DIM = 1600, JPEG_QUALITY = 0.85;
+async function compressImage(file){
+  if(!file || !file.type.startsWith("image/")) return file;
+  try{
+    let bitmap;
+    try{ bitmap = await createImageBitmap(file, {imageOrientation:"from-image"}); }
+    catch(_){ bitmap = await createImageBitmap(file); }
+    const w0 = bitmap.width, h0 = bitmap.height;
+    const scale = Math.min(1, MAX_DIM/Math.max(w0,h0));
+    // Already small in both dimensions and bytes -> keep original.
+    if(scale===1 && file.size < 2*1024*1024){ bitmap.close && bitmap.close(); return file; }
+    const w = Math.round(w0*scale), h = Math.round(h0*scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+    bitmap.close && bitmap.close();
+    const blob = await new Promise(res=>canvas.toBlob(res, "image/jpeg", JPEG_QUALITY));
+    if(!blob || blob.size >= file.size) return file;
+    const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, {type:"image/jpeg", lastModified:Date.now()});
+  }catch(e){ return file; }
+}
+
 function setupDrop(drop, input, onFiles){
   drop.addEventListener("dragover", e=>{e.preventDefault();drop.classList.add("drag")});
   drop.addEventListener("dragleave", ()=>drop.classList.remove("drag"));
@@ -235,7 +262,8 @@ $("galBtn").addEventListener("click", async ()=>{
   try{
     for(let i=0;i<files.length;i+=CHUNK){
       const batch=files.slice(i,i+CHUNK);
-      const fd=new FormData(); batch.forEach(f=>fd.append("files",f));
+      const compressed=await Promise.all(batch.map(compressImage));
+      const fd=new FormData(); compressed.forEach(f=>fd.append("files",f));
       const r=await fetch(API+"/api/photos",{method:"POST",body:fd});
       if(!r.ok) throw new Error("HTTP "+r.status);
       const d=await r.json();
@@ -261,7 +289,7 @@ $("thRange").addEventListener("input", e=>{ $("thVal").textContent = (+e.target.
 
 $("selBtn").addEventListener("click", async ()=>{
   if(!selfieFile) return;
-  const fd = new FormData(); fd.append("file", selfieFile);
+  const fd = new FormData(); fd.append("file", await compressImage(selfieFile));
   const th = $("thRange").value;
   $("selBtn").disabled=true;
   $("selStatus").className="status"; $("selStatus").innerHTML=`<span class="spin"></span>Searching…`;
