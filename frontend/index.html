@@ -47,6 +47,16 @@
   .cam{margin-top:14px;display:none}
   .cam video{width:100%;max-height:240px;border-radius:12px;border:1px solid var(--line);
     background:#000;transform:scaleX(-1)}
+  .people{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;margin-top:16px}
+  .person{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .pcover{aspect-ratio:1;cursor:pointer;overflow:hidden}
+  .pcover img{width:100%;height:100%;object-fit:cover;transition:.15s}
+  .pcover:hover img{transform:scale(1.05)}
+  .pmeta{padding:10px}
+  .pname{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;
+    color:var(--text);font:inherit;font-size:13.5px;padding:7px 9px}
+  .pname:focus{outline:none;border-color:var(--accent)}
+  .pcount{font-size:11.5px;color:var(--muted);margin-top:6px}
   .results{margin-top:26px}
   .results h2{font-size:20px;border-bottom:1px solid var(--line);padding-bottom:10px}
   .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:16px;margin-top:16px}
@@ -158,6 +168,7 @@
 
   <div class="tabs">
     <button class="tab active" id="tabMatches" data-tab="matches">Matches</button>
+    <button class="tab" id="tabPeople" data-tab="people">People</button>
     <button class="tab" id="tabGallery" data-tab="gallery">Full gallery</button>
   </div>
 
@@ -175,6 +186,14 @@
       <span class="status" id="galCount" style="margin:0"></span>
     </div>
     <div id="galleryAll"><div class="empty">No photos indexed yet.</div></div>
+  </div>
+
+  <div class="results" id="viewPeople" style="display:none">
+    <div class="reshead">
+      <h2>People</h2>
+      <button class="toolbtn" id="rebuildBtn">🧬 Group faces into people</button>
+    </div>
+    <div id="peopleOut"><div class="empty">Click “Group faces into people” to auto-cluster everyone in your gallery.</div></div>
   </div>
 </main>
 
@@ -413,9 +432,68 @@ function showTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
   $("viewMatches").style.display = name==="matches"?"block":"none";
   $("viewGallery").style.display = name==="gallery"?"block":"none";
+  $("viewPeople").style.display = name==="people"?"block":"none";
   if(name==="gallery") loadGallery();
+  if(name==="people") loadPeople();
 }
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>showTab(t.dataset.tab)));
+
+// ----- People (auto-clustering) -----
+$("rebuildBtn").addEventListener("click", async ()=>{
+  const btn=$("rebuildBtn"); const orig=btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Grouping…';
+  try{
+    const r=await fetch(API+"/api/people/rebuild",{method:"POST",headers:adminHeaders()});
+    if(r.status===401){ alert("Admin token required. Set it in the footer to group faces."); return; }
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    await loadPeople();
+  }catch(e){ alert("Grouping failed: "+e.message); }
+  finally{ btn.disabled=false; btn.innerHTML=orig; }
+});
+
+async function loadPeople(){
+  const out=$("peopleOut");
+  try{
+    const r=await fetch(API+"/api/people"); const d=await r.json();
+    if(!d.people.length){
+      out.innerHTML='<div class="empty">No people yet — click “Group faces into people”.</div>';
+      return;
+    }
+    out.innerHTML='<div class="people">'+d.people.map(p=>`
+      <div class="person" data-id="${p.id}">
+        <div class="pcover" data-cover="${p.id}"><img src="${API+p.cover_url}" alt="person ${p.id}"></div>
+        <div class="pmeta">
+          <input class="pname" data-name="${p.id}" value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="Name this person">
+          <div class="pcount">${p.photo_count} photo(s) · ${p.face_count} face(s)</div>
+        </div>
+      </div>`).join("")+'</div>';
+    // Cover click -> show that person's photos as matches.
+    out.querySelectorAll("[data-cover]").forEach(el=>el.addEventListener("click",()=>{
+      const p=d.people.find(x=>x.id==el.dataset.cover);
+      showPersonPhotos(p);
+    }));
+    // Rename on change.
+    out.querySelectorAll("[data-name]").forEach(inp=>inp.addEventListener("change",async()=>{
+      const name=inp.value.trim(); if(!name) return;
+      const r=await fetch(API+"/api/people/"+inp.dataset.name,{
+        method:"PATCH",headers:{"Content-Type":"application/json",...adminHeaders()},
+        body:JSON.stringify({name})});
+      if(r.status===401) alert("Admin token required to rename.");
+    }));
+  }catch(e){
+    out.innerHTML='<div class="empty">Could not load people: '+e.message+'</div>';
+  }
+}
+
+function showPersonPhotos(p){
+  lastMatchIds = p.photo_ids.slice();
+  $("dlBtn").disabled = lastMatchIds.length===0;
+  $("kMatches").textContent = p.photo_ids.length;
+  $("selStatus").className="status";
+  $("selStatus").textContent = `Showing ${p.photo_ids.length} photo(s) of ${p.name||("person #"+p.id)}.`;
+  renderMatches(p.photos.map(x=>({photo_id:x.photo_id, similarity:""})));
+  showTab("matches");
+}
 
 // ----- Full gallery view -----
 async function loadGallery(){

@@ -48,6 +48,12 @@ CREATE TABLE IF NOT EXISTS face (
 );
 
 CREATE INDEX IF NOT EXISTS idx_face_photo ON face(photo_id);
+
+CREATE TABLE IF NOT EXISTS person (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT,
+    created_at  TEXT
+);
 """
 
 SCHEMA_PG = """
@@ -68,6 +74,12 @@ CREATE TABLE IF NOT EXISTS face (
 );
 
 CREATE INDEX IF NOT EXISTS idx_face_photo ON face(photo_id);
+
+CREATE TABLE IF NOT EXISTS person (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT,
+    created_at  TEXT
+);
 """
 
 
@@ -122,6 +134,15 @@ def get_db() -> _Conn:
 def init_db() -> None:
     with get_db() as conn:
         conn.executescript(SCHEMA_PG if USE_PG else SCHEMA_SQLITE)
+        # Migration: add face.person_id (nullable FK) if it doesn't exist yet.
+        try:
+            conn.execute(
+                "ALTER TABLE face ADD COLUMN person_id INTEGER "
+                "REFERENCES person(id) ON DELETE SET NULL")
+            conn.commit()
+        except Exception:
+            # Column already exists (SQLite raises; PG raises duplicate_column).
+            conn.raw.rollback() if conn.is_pg else None
 
 
 def _now() -> str:
@@ -191,10 +212,77 @@ def counts(conn: _Conn) -> tuple[int, int]:
 
 def reset(conn: _Conn) -> None:
     if conn.is_pg:
-        conn.execute("TRUNCATE face, photo RESTART IDENTITY CASCADE")
+        conn.execute("TRUNCATE face, photo, person RESTART IDENTITY CASCADE")
     else:
         conn.execute("DELETE FROM face")
         conn.execute("DELETE FROM photo")
+        conn.execute("DELETE FROM person")
         conn.execute(
-            "DELETE FROM sqlite_sequence WHERE name IN ('face','photo')")
+            "DELETE FROM sqlite_sequence "
+            "WHERE name IN ('face','photo','person')")
     conn.commit()
+
+
+# ---- People / clustering helpers ----
+
+def all_faces(conn: _Conn):
+    """Return list of (face_id, photo_id, embedding ndarray) for every face."""
+    out = []
+    for row in conn.execute(
+            "SELECT id, photo_id, embedding FROM face ORDER BY id").fetchall():
+        out.append((row["id"], row["photo_id"],
+                    np.frombuffer(bytes(row["embedding"]), dtype="float32")))
+    return out
+
+
+def create_person(conn: _Conn, name: str | None) -> int:
+    if conn.is_pg:
+        cur = conn.execute(
+            "INSERT INTO person(name, created_at) VALUES (?,?) RETURNING id",
+            (name, _now()))
+        return int(cur.fetchone()["id"])
+    cur = conn.execute(
+        "INSERT INTO person(name, created_at) VALUES (?,?)", (name, _now()))
+    return int(cur.lastrowid)
+
+
+def rename_person(conn: _Conn, person_id: int, name: str) -> None:
+    conn.execute("UPDATE person SET name = ? WHERE id = ?", (name, person_id))
+    conn.commit()
+
+
+def assign_face_person(conn: _Conn, face_id: int, person_id: int) -> None:
+    conn.execute("UPDATE face SET person_id = ? WHERE id = ?",
+                 (person_id, face_id))
+
+
+def clear_people(conn: _Conn) -> None:
+    """Detach all faces from people and remove all person rows."""
+    conn.execute("UPDATE face SET person_id = NULL")
+    conn.execute("DELETE FROM person")
+    if not conn.is_pg:
+        conn.execute("DELETE FROM sqlite_sequence WHERE name = 'person'")
+    conn.commit()
+
+
+def list_people(conn: _Conn):
+    """People with their face/photo counts and a representative photo."""
+    rows = conn.execute("""
+        SELECT p.id, p.name,
+               COUNT(f.id)                AS face_count,
+               COUNT(DISTINCT f.photo_id) AS photo_count,
+               MIN(f.photo_id)            AS rep_photo_id
+        FROM person p
+        LEFT JOIN face f ON f.person_id = p.id
+        GROUP BY p.id, p.name
+        HAVING COUNT(f.id) > 0
+        ORDER BY face_count DESC, p.id
+    """).fetchall()
+    return rows
+
+
+def person_photo_ids(conn: _Conn, person_id: int):
+    rows = conn.execute(
+        "SELECT DISTINCT photo_id FROM face WHERE person_id = ? "
+        "ORDER BY photo_id", (person_id,)).fetchall()
+    return [r["photo_id"] for r in rows]

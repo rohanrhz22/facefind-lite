@@ -9,6 +9,9 @@ Endpoints:
   POST   /api/download      zip up selected photo ids
   DELETE /api/photos/{id}   remove a single photo + its faces
   GET    /api/stats         gallery + face counts
+  POST   /api/people/rebuild  auto-group faces into people (clustering)
+  GET    /api/people        list people with their photos
+  PATCH  /api/people/{id}   rename a person
   GET    /healthz           liveness probe
   DELETE /api/reset         wipe gallery + all face data
 
@@ -233,6 +236,132 @@ def stats():
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+
+# ---- People / auto-clustering ----
+
+CLUSTER_THRESHOLD = float(os.environ.get("FACEFIND_CLUSTER_TH", "0.5"))
+
+
+def _cluster_embeddings(embs: np.ndarray, threshold: float) -> list[int]:
+    """Greedy single-link clustering via union-find on cosine similarity.
+
+    Embeddings are L2-normalized, so cosine == dot product. Returns a label
+    per row. O(n^2) — fine for the brute-force scale this app targets.
+    """
+    n = len(embs)
+    parent = list(range(n))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    sims = embs @ embs.T
+    for i in range(n):
+        for j in range(i + 1, n):
+            if sims[i, j] >= threshold:
+                union(i, j)
+    return [find(i) for i in range(n)]
+
+
+@app.post("/api/people/rebuild")
+async def rebuild_people(x_admin_token: str | None = Header(default=None)):
+    """(Re)group all gallery faces into people by facial similarity.
+
+    Names assigned to people are preserved across rebuilds by matching each
+    new cluster's centroid to the most similar previous person.
+    """
+    _require_admin(x_admin_token)
+    with db.get_db() as conn:
+        faces = db.all_faces(conn)
+        if not faces:
+            db.clear_people(conn)
+            return {"people": 0, "faces": 0, "message": "No faces to cluster."}
+
+        # Snapshot existing names by old person centroid (for name carry-over).
+        old_people = db.list_people(conn)
+        old_centroids = []  # (name, centroid)
+        for p in old_people:
+            if not p["name"]:
+                continue
+            pids = db.person_photo_ids(conn, p["id"])
+            vecs = [e for (_fid, ph, e) in faces if ph in set(pids)]
+            if vecs:
+                c = np.mean(np.stack(vecs), axis=0)
+                n = np.linalg.norm(c)
+                if n > 0:
+                    old_centroids.append((p["name"], c / n))
+
+        embs = np.stack([e for (_fid, _ph, e) in faces]).astype("float32")
+        labels = await asyncio.to_thread(
+            _cluster_embeddings, embs, CLUSTER_THRESHOLD)
+
+        # Group face indices by cluster label.
+        clusters: dict[int, list[int]] = {}
+        for idx, lbl in enumerate(labels):
+            clusters.setdefault(lbl, []).append(idx)
+
+        db.clear_people(conn)
+        people_made = 0
+        for _lbl, idxs in sorted(
+                clusters.items(), key=lambda kv: -len(kv[1])):
+            centroid = np.mean(embs[idxs], axis=0)
+            nn = np.linalg.norm(centroid)
+            centroid = centroid / nn if nn > 0 else centroid
+            # Carry over a name if this cluster matches an old person well.
+            name = None
+            best = 0.6
+            for old_name, oc in old_centroids:
+                s = float(np.dot(centroid, oc))
+                if s > best:
+                    best, name = s, old_name
+            person_id = db.create_person(conn, name)
+            for i in idxs:
+                db.assign_face_person(conn, faces[i][0], person_id)
+            people_made += 1
+        conn.commit()
+    return {"people": people_made, "faces": len(faces),
+            "threshold": CLUSTER_THRESHOLD}
+
+
+@app.get("/api/people")
+def list_people():
+    with db.get_db() as conn:
+        rows = db.list_people(conn)
+        out = []
+        for r in rows:
+            pid = r["id"]
+            photo_ids = db.person_photo_ids(conn, pid)
+            out.append({
+                "id": pid,
+                "name": r["name"],
+                "face_count": r["face_count"],
+                "photo_count": r["photo_count"],
+                "cover_url": f"/api/photos/{r['rep_photo_id']}",
+                "photo_ids": photo_ids,
+                "photos": [{"photo_id": p, "url": f"/api/photos/{p}"}
+                           for p in photo_ids],
+            })
+    return {"people": out, "total": len(out)}
+
+
+@app.patch("/api/people/{person_id}")
+def rename_person(person_id: int, name: str = Body(..., embed=True),
+                  x_admin_token: str | None = Header(default=None)):
+    _require_admin(x_admin_token)
+    name = (name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty.")
+    with db.get_db() as conn:
+        db.rename_person(conn, person_id, name)
+    return {"status": "ok", "id": person_id, "name": name}
 
 
 @app.delete("/api/reset")
