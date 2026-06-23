@@ -62,6 +62,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import logging
+import traceback as _tb
+from fastapi.responses import JSONResponse
+from fastapi.requests import Request
+
+_log = logging.getLogger("facefind")
+_DEBUG_ERRORS = os.environ.get("FACEFIND_DEBUG_ERRORS", "1") == "1"
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception):
+    _log.exception("Unhandled error on %s", request.url.path)
+    detail = "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))
+    if _DEBUG_ERRORS:
+        return JSONResponse(status_code=500, content={"error": str(exc),
+                                                      "trace": detail[-2000:]})
+    return JSONResponse(status_code=500, content={"error": "Internal error"})
+
 
 def _is_admin(token: str | None) -> bool:
     """True if the supplied token matches the configured admin token.
