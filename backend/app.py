@@ -68,7 +68,7 @@ from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 
 _log = logging.getLogger("facefind")
-_DEBUG_ERRORS = os.environ.get("FACEFIND_DEBUG_ERRORS", "1") == "1"
+_DEBUG_ERRORS = os.environ.get("FACEFIND_DEBUG_ERRORS", "0") == "1"
 
 
 @app.exception_handler(Exception)

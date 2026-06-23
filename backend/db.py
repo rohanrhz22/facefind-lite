@@ -166,6 +166,10 @@ def get_db() -> _Conn:
 def init_db() -> None:
     with get_db() as conn:
         conn.executescript(SCHEMA_PG if USE_PG else SCHEMA_SQLITE)
+        # Commit the schema FIRST so the table creations persist even if the
+        # migration below fails (e.g. on an existing DB where person_id already
+        # exists, an un-committed rollback would otherwise undo the new tables).
+        conn.commit()
         # Migration: add face.person_id (nullable FK) if it doesn't exist yet.
         try:
             conn.execute(
