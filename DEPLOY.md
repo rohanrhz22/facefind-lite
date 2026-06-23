@@ -38,6 +38,24 @@ docker run -p 8000:8000 -v facefind_data:/data facefind-lite
 > Free tier sleeps after inactivity (cold start) and has no persistent disk.
 > Uncomment the `disk:` block in `render.yaml` (paid) for persistence.
 
+## Persistent storage (free, recommended)
+
+The free instance's filesystem is **ephemeral** — by default uploads + face
+vectors live in SQLite and reset on every redeploy/sleep. To keep data forever
+at **$0/month**, point the app at a free external Postgres:
+
+1. Create a free Postgres on **[Neon](https://neon.tech)** (or Supabase / Render
+   Postgres). Copy its connection string, e.g.
+   `postgresql://user:pass@ep-xxx.neon.tech/dbname?sslmode=require`.
+2. In your host's dashboard, set env var **`DATABASE_URL`** to that string.
+3. Redeploy. The app auto-creates its tables on startup and now persists across
+   restarts. (No code change — it detects `DATABASE_URL` and switches from SQLite
+   to Postgres automatically.)
+
+> Neon's free tier (0.5 GB) never sleeps and holds roughly 1–2k compressed
+> photos. For larger libraries, store image bytes in object storage (Cloudflare
+> R2 free 10 GB) and keep only vectors in Postgres.
+
 ## 3. Fly.io (free allowance)
 
 ```bash
@@ -53,7 +71,8 @@ Mount the volume at `/data` (set `FACEFIND_DATA_DIR=/data`, already the default)
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `PORT` | `8000` | Port the server binds to |
-| `FACEFIND_DATA_DIR` | `backend/` | Where `facefind.db` (uploads + vectors) lives |
+| `DATABASE_URL` | _(empty)_ | Postgres connection string for **persistent** storage. If empty, falls back to local SQLite (ephemeral on free hosts). |
+| `FACEFIND_DATA_DIR` | `backend/` | Where `facefind.db` (SQLite fallback) lives |
 | `FACEFIND_MODELS_DIR` | `backend/models/` | Where ONNX model weights live |
 | `FACEFIND_ADMIN_TOKEN` | _(empty)_ | If set, `DELETE /api/reset` and `DELETE /api/photos/{id}` require header `X-Admin-Token`. Leave empty in dev. |
 | `FACEFIND_MAX_FILE_MB` | `15` | Max size per uploaded image (returns 413 over limit) |

@@ -15,6 +15,11 @@ services:
       # Set a long random value in the Render dashboard to protect reset/delete.
       - key: FACEFIND_ADMIN_TOKEN
         sync: false
+      # Persist uploads + face vectors in a free external Postgres (Neon/Supabase
+      # /Render). Paste the connection string in the dashboard. Without it the app
+      # falls back to ephemeral SQLite (data resets on redeploy/sleep).
+      - key: DATABASE_URL
+        sync: false
     # Free tier has an ephemeral disk; uploads reset on redeploy/sleep.
     # Add a paid disk for persistence:
     # disk:
