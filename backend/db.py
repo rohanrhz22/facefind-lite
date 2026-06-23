@@ -54,6 +54,22 @@ CREATE TABLE IF NOT EXISTS person (
     name        TEXT,
     created_at  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS detection (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT,
+    token       TEXT UNIQUE,
+    created_at  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS detection_photo (
+    detection_id INTEGER REFERENCES detection(id) ON DELETE CASCADE,
+    photo_id     INTEGER REFERENCES photo(id) ON DELETE CASCADE,
+    similarity   REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_detphoto_det ON detection_photo(detection_id);
+CREATE INDEX IF NOT EXISTS idx_detphoto_photo ON detection_photo(photo_id);
 """
 
 SCHEMA_PG = """
@@ -80,6 +96,22 @@ CREATE TABLE IF NOT EXISTS person (
     name        TEXT,
     created_at  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS detection (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT,
+    token       TEXT UNIQUE,
+    created_at  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS detection_photo (
+    detection_id INTEGER REFERENCES detection(id) ON DELETE CASCADE,
+    photo_id     INTEGER REFERENCES photo(id) ON DELETE CASCADE,
+    similarity   REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_detphoto_det ON detection_photo(detection_id);
+CREATE INDEX IF NOT EXISTS idx_detphoto_photo ON detection_photo(photo_id);
 """
 
 
@@ -212,15 +244,86 @@ def counts(conn: _Conn) -> tuple[int, int]:
 
 def reset(conn: _Conn) -> None:
     if conn.is_pg:
-        conn.execute("TRUNCATE face, photo, person RESTART IDENTITY CASCADE")
+        conn.execute(
+            "TRUNCATE detection_photo, detection, face, photo, person "
+            "RESTART IDENTITY CASCADE")
     else:
+        conn.execute("DELETE FROM detection_photo")
+        conn.execute("DELETE FROM detection")
         conn.execute("DELETE FROM face")
         conn.execute("DELETE FROM photo")
         conn.execute("DELETE FROM person")
         conn.execute(
             "DELETE FROM sqlite_sequence "
-            "WHERE name IN ('face','photo','person')")
+            "WHERE name IN ('face','photo','person','detection')")
     conn.commit()
+
+
+# ---- Detections (user "find my photos" records) ----
+
+def create_detection(conn: _Conn, name: str, token: str) -> int:
+    if conn.is_pg:
+        cur = conn.execute(
+            "INSERT INTO detection(name, token, created_at) "
+            "VALUES (?,?,?) RETURNING id", (name, token, _now()))
+        return int(cur.fetchone()["id"])
+    cur = conn.execute(
+        "INSERT INTO detection(name, token, created_at) VALUES (?,?,?)",
+        (name, token, _now()))
+    return int(cur.lastrowid)
+
+
+def add_detection_photo(conn: _Conn, detection_id: int, photo_id: int,
+                        similarity: float) -> None:
+    conn.execute(
+        "INSERT INTO detection_photo(detection_id, photo_id, similarity) "
+        "VALUES (?,?,?)", (detection_id, photo_id, float(similarity)))
+
+
+def detection_id_for_token(conn: _Conn, token: str):
+    row = conn.execute(
+        "SELECT id FROM detection WHERE token = ?", (token,)).fetchone()
+    return row["id"] if row else None
+
+
+def photo_in_detection(conn: _Conn, token: str, photo_id: int) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM detection d JOIN detection_photo dp "
+        "ON dp.detection_id = d.id "
+        "WHERE d.token = ? AND dp.photo_id = ? LIMIT 1",
+        (token, photo_id)).fetchone()
+    return row is not None
+
+
+def detection_photo_ids(conn: _Conn, token: str):
+    rows = conn.execute(
+        "SELECT dp.photo_id FROM detection d JOIN detection_photo dp "
+        "ON dp.detection_id = d.id WHERE d.token = ? ORDER BY dp.photo_id",
+        (token,)).fetchall()
+    return [r["photo_id"] for r in rows]
+
+
+def list_detections(conn: _Conn):
+    """Admin view: every user who found themselves, with photo counts."""
+    rows = conn.execute("""
+        SELECT d.id, d.name, d.token, d.created_at,
+               COUNT(dp.photo_id) AS photo_count
+        FROM detection d
+        LEFT JOIN detection_photo dp ON dp.detection_id = d.id
+        GROUP BY d.id, d.name, d.token, d.created_at
+        ORDER BY d.created_at DESC, d.id DESC
+    """).fetchall()
+    out = []
+    for r in rows:
+        pids = [pr["photo_id"] for pr in conn.execute(
+            "SELECT photo_id FROM detection_photo "
+            "WHERE detection_id = ? ORDER BY photo_id", (r["id"],)).fetchall()]
+        out.append({
+            "id": r["id"], "name": r["name"], "token": r["token"],
+            "created_at": r["created_at"], "photo_count": r["photo_count"],
+            "photo_ids": pids,
+        })
+    return out
 
 
 # ---- People / clustering helpers ----

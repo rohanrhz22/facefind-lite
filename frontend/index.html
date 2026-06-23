@@ -19,6 +19,14 @@
   .logo{font-weight:800;font-size:30px;letter-spacing:.5px;
     background:linear-gradient(90deg,var(--accent),var(--brand));-webkit-background-clip:text;background-clip:text;color:transparent}
   .tag{color:var(--muted);font-size:14px;margin-top:2px}
+  .roles{display:flex;gap:8px;margin-top:14px}
+  .role{font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);background:transparent;
+    border:1px solid var(--line);border-radius:10px;padding:8px 16px;cursor:pointer;margin:0}
+  .role.active{color:#0b1020;background:linear-gradient(90deg,var(--accent),var(--brand));border-color:transparent}
+  .fld{display:block;font-size:13px;color:var(--muted);margin-bottom:14px}
+  .fld input{display:block;width:100%;margin-top:6px;background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:10px;color:var(--text);font:inherit;padding:11px 12px}
+  .fld input:focus{outline:none;border-color:var(--accent)}
   main{max-width:1100px;margin:0 auto;padding:18px 24px 90px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:18px}
   @media(max-width:840px){.grid{grid-template-columns:1fr}}
@@ -93,49 +101,35 @@
   .lb img{max-width:92vw;max-height:86vh;border-radius:12px;border:1px solid var(--line);box-shadow:var(--shadow)}
   .lb .x{position:absolute;top:20px;right:26px;font-size:34px;color:#fff;cursor:pointer;line-height:1}
   .lb .dl{position:absolute;bottom:26px;background:linear-gradient(90deg,var(--accent),var(--brand));color:#0b1020;font-weight:700;padding:10px 20px;border-radius:10px;text-decoration:none}
+  /* photo strip overlay (admin browsing a person/detection) */
+  .strip{align-items:flex-start;justify-content:center;overflow:auto}
+  .strip .stripinner{max-width:1000px;width:100%;margin:48px auto;padding:0 8px}
+  .strip .x{position:fixed;top:20px;right:26px}
 </style>
 </head>
 <body>
 <header>
   <div class="logo">FaceFind Lite</div>
-  <div class="tag">Upload a gallery, then a selfie — find every photo of that person. Runs free on OpenCV + SQLite.</div>
+  <div class="tag">Find every photo you appear in — just enter your name and a selfie.</div>
+  <div class="roles">
+    <button class="role active" id="roleUser" data-role="user">🙂 Find my photos</button>
+    <button class="role" id="roleAdmin" data-role="admin">🔑 Admin</button>
+  </div>
 </header>
 
 <main>
-  <div class="kpi">
-    <div class="box"><div class="n" id="kPhotos">0</div><div class="l">Photos indexed</div></div>
-    <div class="box"><div class="n" id="kFaces">0</div><div class="l">Faces detected</div></div>
-    <div class="box"><div class="n" id="kMatches">—</div><div class="l">Last search matches</div></div>
-  </div>
-
-  <div class="grid">
-    <!-- Gallery upload -->
+  <!-- ============ USER VIEW ============ -->
+  <section id="userView">
     <div class="card">
-      <h2>1 · Build your gallery</h2>
-      <p class="sub">Drop in the photos to search through. Each face is detected &amp; fingerprinted.</p>
-      <label class="drop" id="galDrop">
-        <div class="big">🖼️</div>
-        <div><strong>Drop photos</strong> or click to choose</div>
-        <div style="font-size:12px;margin-top:4px">JPG / PNG · multiple allowed</div>
-        <input type="file" id="galInput" accept="image/*" multiple>
+      <h2>Find your photos</h2>
+      <p class="sub">Enter your name, add a selfie (upload or camera), and we'll find every photo you're in. You'll only see your own photos.</p>
+      <label class="fld">Your name
+        <input id="userName" type="text" placeholder="e.g. Priya" autocomplete="name">
       </label>
-      <div class="thumbs" id="galThumbs"></div>
-      <div class="row">
-        <button id="galBtn" disabled>Index photos</button>
-        <button class="ghost" id="resetBtn">Reset gallery</button>
-      </div>
-      <div class="prog" id="galProg"><i></i></div>
-      <div class="status" id="galStatus"></div>
-    </div>
-
-    <!-- Search -->
-    <div class="card">
-      <h2>2 · Find a person</h2>
-      <p class="sub">Upload one clear selfie of the person you want to find.</p>
       <label class="drop" id="selDrop">
         <div class="big">🙂</div>
         <div><strong>Drop a selfie</strong> or click to choose</div>
-        <div style="font-size:12px;margin-top:4px">One face works best</div>
+        <div style="font-size:12px;margin-top:4px">One clear face works best</div>
         <input type="file" id="selInput" accept="image/*">
       </label>
       <div class="row" style="margin-top:10px">
@@ -160,47 +154,90 @@
         </div>
       </div>
       <div class="row">
-        <button id="selBtn" disabled>Search gallery</button>
+        <button id="selBtn" disabled>🔍 Find my photos</button>
       </div>
       <div class="status" id="selStatus"></div>
     </div>
-  </div>
 
-  <div class="tabs">
-    <button class="tab active" id="tabMatches" data-tab="matches">Matches</button>
-    <button class="tab" id="tabPeople" data-tab="people">People</button>
-    <button class="tab" id="tabGallery" data-tab="gallery">Full gallery</button>
-  </div>
-
-  <div class="results" id="viewMatches">
-    <div class="reshead">
-      <h2>Matches</h2>
-      <button class="toolbtn" id="dlBtn" disabled>⬇ Download all (.zip)</button>
+    <div class="results" id="viewMatches">
+      <div class="reshead">
+        <h2 id="matchesTitle">Your photos</h2>
+        <button class="toolbtn" id="dlBtn" disabled>⬇ Download all (.zip)</button>
+      </div>
+      <div id="galleryOut"><div class="empty">Enter your name and a selfie, then search to see your photos.</div></div>
     </div>
-    <div id="galleryOut"><div class="empty">No search yet — index some photos and search for a face.</div></div>
-  </div>
+  </section>
 
-  <div class="results" id="viewGallery" style="display:none">
-    <div class="reshead">
-      <h2>Indexed photos</h2>
-      <span class="status" id="galCount" style="margin:0"></span>
+  <!-- ============ ADMIN VIEW ============ -->
+  <section id="adminView" hidden>
+    <div class="kpi">
+      <div class="box"><div class="n" id="kPhotos">0</div><div class="l">Photos indexed</div></div>
+      <div class="box"><div class="n" id="kFaces">0</div><div class="l">Faces detected</div></div>
+      <div class="box"><div class="n" id="kDetections">0</div><div class="l">People found themselves</div></div>
     </div>
-    <div id="galleryAll"><div class="empty">No photos indexed yet.</div></div>
-  </div>
 
-  <div class="results" id="viewPeople" style="display:none">
-    <div class="reshead">
-      <h2>People</h2>
-      <button class="toolbtn" id="rebuildBtn">🧬 Group faces into people</button>
+    <div class="card" style="margin-top:18px">
+      <h2>Upload to the gallery</h2>
+      <p class="sub">Add the event photos here. Each face is detected &amp; fingerprinted so users can find themselves.</p>
+      <label class="drop" id="galDrop">
+        <div class="big">🖼️</div>
+        <div><strong>Drop photos</strong> or click to choose</div>
+        <div style="font-size:12px;margin-top:4px">JPG / PNG · multiple allowed</div>
+        <input type="file" id="galInput" accept="image/*" multiple>
+      </label>
+      <div class="thumbs" id="galThumbs"></div>
+      <div class="row">
+        <button id="galBtn" disabled>Index photos</button>
+        <button class="ghost" id="resetBtn">Reset gallery</button>
+      </div>
+      <div class="prog" id="galProg"><i></i></div>
+      <div class="status" id="galStatus"></div>
     </div>
-    <div id="peopleOut"><div class="empty">Click “Group faces into people” to auto-cluster everyone in your gallery.</div></div>
-  </div>
+
+    <div class="tabs">
+      <button class="tab active" id="tabGallery" data-tab="gallery">Main gallery</button>
+      <button class="tab" id="tabPeople" data-tab="people">People</button>
+      <button class="tab" id="tabDetections" data-tab="detections">Who found themselves</button>
+    </div>
+
+    <div class="results" id="viewGallery">
+      <div class="reshead">
+        <h2>Indexed photos</h2>
+        <span class="status" id="galCount" style="margin:0"></span>
+      </div>
+      <div id="galleryAll"><div class="empty">No photos indexed yet.</div></div>
+    </div>
+
+    <div class="results" id="viewPeople" style="display:none">
+      <div class="reshead">
+        <h2>People</h2>
+        <button class="toolbtn" id="rebuildBtn">🧬 Group faces into people</button>
+      </div>
+      <div id="peopleOut"><div class="empty">Click “Group faces into people” to auto-cluster everyone in your gallery.</div></div>
+    </div>
+
+    <div class="results" id="viewDetections" style="display:none">
+      <div class="reshead">
+        <h2>Who found themselves</h2>
+        <button class="toolbtn" id="refreshDetBtn">↻ Refresh</button>
+      </div>
+      <div id="detectionsOut"><div class="empty">No users have searched yet.</div></div>
+    </div>
+  </section>
 </main>
 
 <div class="lb" id="lb">
   <span class="x" id="lbX">&times;</span>
   <img id="lbImg" alt="full size">
   <a class="dl" id="lbDl" download>Download</a>
+</div>
+
+<div class="lb strip" id="strip">
+  <span class="x" id="stripX">&times;</span>
+  <div class="stripinner">
+    <h3 id="stripTitle" style="margin:0 0 12px;color:#fff"></h3>
+    <div id="stripBox"></div>
+  </div>
 </div>
 
 <footer>
@@ -215,17 +252,34 @@
 <script>
 const API = "";
 const $ = id => document.getElementById(id);
-// Optional admin token (set via the field) for destructive actions.
-function adminHeaders(){
-  const t = localStorage.getItem("ff_admin_token") || "";
-  return t ? {"X-Admin-Token": t} : {};
-}
 let galleryFiles = [], selfieFile = null, lastMatchIds = [];
+let userToken = null;          // detection token from the user's own search
+let adminToken = localStorage.getItem("ff_admin_token") || "";
+
+function adminHeaders(){ return adminToken ? {"X-Admin-Token": adminToken} : {}; }
+
+// ----- Role switching -----
+function setRole(role){
+  document.querySelectorAll(".role").forEach(b=>b.classList.toggle("active",b.dataset.role===role));
+  $("userView").hidden = role!=="user";
+  $("adminView").hidden = role!=="admin";
+  if(role==="admin") enterAdmin();
+}
+$("roleUser").addEventListener("click",()=>setRole("user"));
+$("roleAdmin").addEventListener("click",()=>setRole("admin"));
+
+async function enterAdmin(){
+  if(!adminToken){
+    const t = prompt("Enter admin token:");
+    if(t){ adminToken=t.trim(); localStorage.setItem("ff_admin_token",adminToken); }
+  }
+  // Validate by loading stats; if unauthorized, warn.
+  const ok = await refreshStats();
+  if(!ok && adminToken){ alert("Admin token rejected. Click Admin again to re-enter."); adminToken=""; localStorage.removeItem("ff_admin_token"); return; }
+  showTab("gallery");
+}
 
 // Downscale/compress large images in the browser before upload.
-// Caps the longest side at 1600px (the server normalizes to <=1280 for
-// detection anyway, so faces stay sharp) and re-encodes as high-quality JPEG.
-// This avoids out-of-memory crashes on the free-tier server with huge photos.
 const MAX_DIM = 1600, JPEG_QUALITY = 0.85;
 async function compressImage(file){
   if(!file || !file.type.startsWith("image/")) return file;
@@ -235,7 +289,6 @@ async function compressImage(file){
     catch(_){ bitmap = await createImageBitmap(file); }
     const w0 = bitmap.width, h0 = bitmap.height;
     const scale = Math.min(1, MAX_DIM/Math.max(w0,h0));
-    // Already small in both dimensions and bytes -> keep original.
     if(scale===1 && file.size < 2*1024*1024){ bitmap.close && bitmap.close(); return file; }
     const w = Math.round(w0*scale), h = Math.round(h0*scale);
     const canvas = document.createElement("canvas");
@@ -293,8 +346,7 @@ $("camBtn").addEventListener("click", async ()=>{
   try{
     camStream = await navigator.mediaDevices.getUserMedia({
       video:{facingMode:"user", width:{ideal:1280}, height:{ideal:960}}, audio:false});
-    const v = $("camVideo");
-    v.srcObject = camStream;
+    $("camVideo").srcObject = camStream;
     $("camWrap").style.display="block";
     $("selStatus").textContent="";
   }catch(e){
@@ -310,24 +362,26 @@ $("camShot").addEventListener("click", ()=>{
   if(!v.videoWidth){ return; }
   const canvas = document.createElement("canvas");
   canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-  const ctx = canvas.getContext("2d");
-  // Un-mirror: the preview is flipped for UX, capture the true (unflipped) frame.
-  ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+  canvas.getContext("2d").drawImage(v, 0, 0, canvas.width, canvas.height);
   canvas.toBlob(blob=>{
     if(!blob) return;
-    const file = new File([blob], "camera-selfie.jpg", {type:"image/jpeg", lastModified:Date.now()});
-    setSelfie(file);
+    setSelfie(new File([blob], "camera-selfie.jpg", {type:"image/jpeg", lastModified:Date.now()}));
     stopCam();
   }, "image/jpeg", 0.9);
 });
 
+// ----- Admin: stats -----
 async function refreshStats(){
   try{
-    const r = await fetch(API+"/api/stats"); const d = await r.json();
+    const r = await fetch(API+"/api/stats",{headers:adminHeaders()});
+    if(r.status===401) return false;
+    const d = await r.json();
     $("kPhotos").textContent = d.total_photos; $("kFaces").textContent = d.total_faces;
-  }catch(e){}
+    return true;
+  }catch(e){ return false; }
 }
 
+// ----- Admin: upload gallery -----
 $("galBtn").addEventListener("click", async ()=>{
   if(!galleryFiles.length) return;
   const files = galleryFiles.slice();
@@ -342,7 +396,8 @@ $("galBtn").addEventListener("click", async ()=>{
       const batch=files.slice(i,i+CHUNK);
       const compressed=await Promise.all(batch.map(compressImage));
       const fd=new FormData(); compressed.forEach(f=>fd.append("files",f));
-      const r=await fetch(API+"/api/photos",{method:"POST",body:fd});
+      const r=await fetch(API+"/api/photos",{method:"POST",headers:adminHeaders(),body:fd});
+      if(r.status===401){ throw new Error("Admin token required to upload."); }
       if(!r.ok) throw new Error("HTTP "+r.status);
       const d=await r.json();
       totalFaces += d.indexed.reduce((a,b)=>a+b.faces,0);
@@ -365,9 +420,14 @@ $("galBtn").addEventListener("click", async ()=>{
 
 $("thRange").addEventListener("input", e=>{ $("thVal").textContent = (+e.target.value).toFixed(2); });
 
+// ----- User: find my photos -----
 $("selBtn").addEventListener("click", async ()=>{
   if(!selfieFile) return;
-  const fd = new FormData(); fd.append("file", await compressImage(selfieFile));
+  const name = $("userName").value.trim();
+  if(!name){ $("selStatus").className="status err"; $("selStatus").textContent="Please enter your name first."; $("userName").focus(); return; }
+  const fd = new FormData();
+  fd.append("file", await compressImage(selfieFile));
+  fd.append("name", name);
   const th = $("thRange").value;
   $("selBtn").disabled=true;
   $("selStatus").className="status"; $("selStatus").innerHTML=`<span class="spin"></span>Searching…`;
@@ -375,34 +435,35 @@ $("selBtn").addEventListener("click", async ()=>{
     const r = await fetch(API+"/api/search?threshold="+th,{method:"POST",body:fd});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const d = await r.json();
-    $("kMatches").textContent = d.total;
+    userToken = d.token || null;
     if(d.message){ $("selStatus").className="status err"; $("selStatus").textContent=d.message; }
-    else $("selStatus").textContent = `${d.total} match(es) at threshold ${d.threshold}.`;
+    else $("selStatus").textContent = `Hi ${d.name||name} — found ${d.total} photo(s) of you.`;
     lastMatchIds = (d.matches||[]).map(m=>m.photo_id);
     $("dlBtn").disabled = lastMatchIds.length===0;
-    showTab("matches");
-    renderMatches(d.matches);
+    $("matchesTitle").textContent = `Your photos${d.total?` (${d.total})`:""}`;
+    renderMatches(d.matches, userToken);
   }catch(e){
     $("selStatus").className="status err"; $("selStatus").textContent="Search failed: "+e.message;
   }finally{ $("selBtn").disabled=false; }
 });
 
-function renderMatches(matches){
+function renderMatches(matches, token){
   const out = $("galleryOut");
-  if(!matches || !matches.length){ out.innerHTML='<div class="empty">No matching photos found. Try another selfie, loosen strictness, or index more photos.</div>'; return; }
+  if(!matches || !matches.length){ out.innerHTML='<div class="empty">No photos found for you. Try another selfie or loosen strictness.</div>'; return; }
   out.innerHTML = '<div class="gallery">'+matches.map(m=>`
     <div class="match" data-id="${m.photo_id}">
-      <span class="badge">${(m.similarity*100).toFixed(0)}%</span>
+      ${m.similarity?`<span class="badge">${(m.similarity*100).toFixed(0)}%</span>`:""}
       <img src="${API}${m.url}" alt="match ${m.photo_id}" loading="lazy">
-      <div class="bar"><span>photo #${m.photo_id}</span><span class="score">${m.similarity}</span></div>
+      <div class="bar"><span>photo #${m.photo_id}</span><span class="score">${m.similarity||""}</span></div>
     </div>`).join("")+'</div>';
-  out.querySelectorAll(".match img").forEach(img=>img.addEventListener("click",()=>openLightbox(img.closest(".match").dataset.id)));
+  out.querySelectorAll(".match img").forEach(img=>img.addEventListener("click",()=>openLightbox(img.closest(".match").dataset.id, token)));
 }
 
 // ----- Lightbox -----
-function openLightbox(id){
-  $("lbImg").src = API+"/api/photos/"+id;
-  $("lbDl").href = API+"/api/photos/"+id;
+function openLightbox(id, token){
+  const url = API+"/api/photos/"+id+(token?`?t=${token}`:"");
+  $("lbImg").src = url;
+  $("lbDl").href = url;
   $("lbDl").setAttribute("download","photo_"+id+".jpg");
   $("lb").classList.add("show");
 }
@@ -410,41 +471,44 @@ $("lbX").addEventListener("click",()=>$("lb").classList.remove("show"));
 $("lb").addEventListener("click",e=>{ if(e.target===$("lb")) $("lb").classList.remove("show"); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("lb").classList.remove("show"); });
 
-// ----- Download matches as ZIP -----
+// ----- Download as ZIP (user uses their token, admin uses header) -----
 $("dlBtn").addEventListener("click", async ()=>{
   if(!lastMatchIds.length) return;
   $("dlBtn").disabled=true; const orig=$("dlBtn").textContent;
   $("dlBtn").innerHTML='<span class="spin"></span>Zipping…';
   try{
-    const r=await fetch(API+"/api/download",{method:"POST",headers:{"Content-Type":"application/json"},
+    const qs = userToken?`?t=${userToken}`:"";
+    const r=await fetch(API+"/api/download"+qs,{method:"POST",
+      headers:{"Content-Type":"application/json",...adminHeaders()},
       body:JSON.stringify({photo_ids:lastMatchIds})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const blob=await r.blob();
     const url=URL.createObjectURL(blob);
-    const a=document.createElement("a"); a.href=url; a.download="facefind-matches.zip"; a.click();
+    const a=document.createElement("a"); a.href=url; a.download="facefind-photos.zip"; a.click();
     URL.revokeObjectURL(url);
   }catch(e){ alert("Download failed: "+e.message); }
   finally{ $("dlBtn").disabled=false; $("dlBtn").textContent=orig; }
 });
 
-// ----- Tabs -----
+// ----- Admin tabs -----
 function showTab(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
-  $("viewMatches").style.display = name==="matches"?"block":"none";
   $("viewGallery").style.display = name==="gallery"?"block":"none";
   $("viewPeople").style.display = name==="people"?"block":"none";
+  $("viewDetections").style.display = name==="detections"?"block":"none";
   if(name==="gallery") loadGallery();
   if(name==="people") loadPeople();
+  if(name==="detections") loadDetections();
 }
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>showTab(t.dataset.tab)));
 
-// ----- People (auto-clustering) -----
+// ----- Admin: people (auto-clustering) -----
 $("rebuildBtn").addEventListener("click", async ()=>{
   const btn=$("rebuildBtn"); const orig=btn.innerHTML;
   btn.disabled=true; btn.innerHTML='<span class="spin"></span>Grouping…';
   try{
     const r=await fetch(API+"/api/people/rebuild",{method:"POST",headers:adminHeaders()});
-    if(r.status===401){ alert("Admin token required. Set it in the footer to group faces."); return; }
+    if(r.status===401){ alert("Admin token required."); return; }
     if(!r.ok) throw new Error("HTTP "+r.status);
     await loadPeople();
   }catch(e){ alert("Grouping failed: "+e.message); }
@@ -454,11 +518,10 @@ $("rebuildBtn").addEventListener("click", async ()=>{
 async function loadPeople(){
   const out=$("peopleOut");
   try{
-    const r=await fetch(API+"/api/people"); const d=await r.json();
-    if(!d.people.length){
-      out.innerHTML='<div class="empty">No people yet — click “Group faces into people”.</div>';
-      return;
-    }
+    const r=await fetch(API+"/api/people",{headers:adminHeaders()});
+    if(r.status===401){ out.innerHTML='<div class="empty">Admin token required.</div>'; return; }
+    const d=await r.json();
+    if(!d.people.length){ out.innerHTML='<div class="empty">No people yet — click “Group faces into people”.</div>'; return; }
     out.innerHTML='<div class="people">'+d.people.map(p=>`
       <div class="person" data-id="${p.id}">
         <div class="pcover" data-cover="${p.id}"><img src="${API+p.cover_url}" alt="person ${p.id}"></div>
@@ -467,12 +530,10 @@ async function loadPeople(){
           <div class="pcount">${p.photo_count} photo(s) · ${p.face_count} face(s)</div>
         </div>
       </div>`).join("")+'</div>';
-    // Cover click -> show that person's photos as matches.
     out.querySelectorAll("[data-cover]").forEach(el=>el.addEventListener("click",()=>{
       const p=d.people.find(x=>x.id==el.dataset.cover);
-      showPersonPhotos(p);
+      openPhotoStrip(p.name||("person #"+p.id), p.photos, adminToken);
     }));
-    // Rename on change.
     out.querySelectorAll("[data-name]").forEach(inp=>inp.addEventListener("change",async()=>{
       const name=inp.value.trim(); if(!name) return;
       const r=await fetch(API+"/api/people/"+inp.dataset.name,{
@@ -480,26 +541,58 @@ async function loadPeople(){
         body:JSON.stringify({name})});
       if(r.status===401) alert("Admin token required to rename.");
     }));
-  }catch(e){
-    out.innerHTML='<div class="empty">Could not load people: '+e.message+'</div>';
-  }
+  }catch(e){ out.innerHTML='<div class="empty">Could not load people: '+e.message+'</div>'; }
 }
 
-function showPersonPhotos(p){
-  lastMatchIds = p.photo_ids.slice();
-  $("dlBtn").disabled = lastMatchIds.length===0;
-  $("kMatches").textContent = p.photo_ids.length;
-  $("selStatus").className="status";
-  $("selStatus").textContent = `Showing ${p.photo_ids.length} photo(s) of ${p.name||("person #"+p.id)}.`;
-  renderMatches(p.photos.map(x=>({photo_id:x.photo_id, similarity:""})));
-  showTab("matches");
+// ----- Admin: who found themselves -----
+$("refreshDetBtn").addEventListener("click", loadDetections);
+async function loadDetections(){
+  const out=$("detectionsOut");
+  try{
+    const r=await fetch(API+"/api/detections",{headers:adminHeaders()});
+    if(r.status===401){ out.innerHTML='<div class="empty">Admin token required.</div>'; return; }
+    const d=await r.json();
+    $("kDetections").textContent = d.total;
+    if(!d.detections.length){ out.innerHTML='<div class="empty">No users have searched yet.</div>'; return; }
+    out.innerHTML='<div class="detlist">'+d.detections.map(x=>`
+      <div class="detrow" data-det="${x.id}">
+        <div class="detmeta">
+          <div class="detname">${(x.name||"(no name)").replace(/</g,"&lt;")}</div>
+          <div class="pcount">${x.photo_count} photo(s) · ${new Date(x.created_at).toLocaleString()}</div>
+        </div>
+        <button class="toolbtn" data-view="${x.id}">View photos</button>
+      </div>`).join("")+'</div>';
+    out.querySelectorAll("[data-view]").forEach(btn=>btn.addEventListener("click",()=>{
+      const x=d.detections.find(z=>z.id==btn.dataset.view);
+      openPhotoStrip(x.name||"(no name)", x.photos, adminToken);
+    }));
+  }catch(e){ out.innerHTML='<div class="empty">Could not load detections: '+e.message+'</div>'; }
 }
 
-// ----- Full gallery view -----
+// Render a set of photos in the lightbox-grid overlay (admin browsing).
+function openPhotoStrip(title, photos, token){
+  $("matchesTitle"); // no-op; keep linter calm
+  const grid = '<div class="gallery">'+photos.map(p=>`
+    <div class="match" data-id="${p.photo_id}">
+      <img src="${API+p.url}" alt="photo ${p.photo_id}" loading="lazy">
+      <div class="bar"><span>photo #${p.photo_id}</span></div>
+    </div>`).join("")+'</div>';
+  const box=$("stripBox");
+  $("stripTitle").textContent = title+" — "+photos.length+" photo(s)";
+  box.innerHTML = grid;
+  box.querySelectorAll(".match img").forEach(img=>img.addEventListener("click",()=>openLightbox(img.closest(".match").dataset.id, token)));
+  $("strip").classList.add("show");
+}
+$("stripX").addEventListener("click",()=>$("strip").classList.remove("show"));
+$("strip").addEventListener("click",e=>{ if(e.target===$("strip")) $("strip").classList.remove("show"); });
+
+// ----- Admin: full gallery -----
 async function loadGallery(){
   const out=$("galleryAll");
   try{
-    const r=await fetch(API+"/api/gallery"); const d=await r.json();
+    const r=await fetch(API+"/api/gallery",{headers:adminHeaders()});
+    if(r.status===401){ out.innerHTML='<div class="empty">Admin token required.</div>'; return; }
+    const d=await r.json();
     $("galCount").textContent = `${d.photos.length} photo(s)`;
     if(!d.photos.length){ out.innerHTML='<div class="empty">No photos indexed yet.</div>'; return; }
     out.innerHTML='<div class="gallery">'+d.photos.map(p=>`
@@ -508,13 +601,13 @@ async function loadGallery(){
         <img src="${API}${p.url}" alt="photo ${p.photo_id}" loading="lazy">
         <div class="bar"><span>#${p.photo_id}</span><span class="score">${p.faces} face(s)</span></div>
       </div>`).join("")+'</div>';
-    out.querySelectorAll(".match img").forEach(img=>img.addEventListener("click",()=>openLightbox(img.closest(".match").dataset.id)));
+    out.querySelectorAll(".match img").forEach(img=>img.addEventListener("click",()=>openLightbox(img.closest(".match").dataset.id, adminToken)));
     out.querySelectorAll("[data-del]").forEach(btn=>btn.addEventListener("click",async ev=>{
       ev.stopPropagation();
       const id=btn.dataset.del;
       if(!confirm("Delete photo #"+id+"?")) return;
       const r=await fetch(API+"/api/photos/"+id,{method:"DELETE",headers:adminHeaders()});
-      if(r.status===401){ alert("Admin token required to delete. Set it below."); return; }
+      if(r.status===401){ alert("Admin token required to delete."); return; }
       loadGallery(); refreshStats();
     }));
   }catch(e){ out.innerHTML='<div class="empty">Could not load gallery.</div>'; }
@@ -523,22 +616,23 @@ async function loadGallery(){
 $("resetBtn").addEventListener("click", async ()=>{
   if(!confirm("Delete the entire gallery and all face data?")) return;
   const r=await fetch(API+"/api/reset",{method:"DELETE",headers:adminHeaders()});
-  if(r.status===401){ alert("Admin token required to reset. Set it in the Admin token field."); return; }
-  $("galStatus").textContent="Gallery cleared."; $("kMatches").textContent="—";
-  lastMatchIds=[]; $("dlBtn").disabled=true;
-  $("galleryOut").innerHTML='<div class="empty">Gallery cleared. Index photos to start again.</div>';
-  if($("viewGallery").style.display!=="none") loadGallery();
+  if(r.status===401){ alert("Admin token required to reset."); return; }
+  $("galStatus").textContent="Gallery cleared.";
+  $("galleryAll").innerHTML='<div class="empty">Gallery cleared. Index photos to start again.</div>';
   refreshStats();
 });
 
-// Admin token persistence
+// ----- Init: footer admin token sync -----
 const _tok=$("adminTok");
 if(_tok){
-  _tok.value = localStorage.getItem("ff_admin_token") || "";
-  _tok.addEventListener("change",()=>localStorage.setItem("ff_admin_token",_tok.value.trim()));
+  _tok.value = adminToken;
+  _tok.addEventListener("change",()=>{
+    adminToken=_tok.value.trim();
+    localStorage.setItem("ff_admin_token",adminToken);
+  });
 }
+setRole("user");
 
-refreshStats();
 </script>
 </body>
 </html>

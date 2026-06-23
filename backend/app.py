@@ -2,18 +2,19 @@
 FaceFind Lite — FastAPI backend (Mode B from the build docs).
 
 Endpoints:
-  POST   /api/photos        upload photos -> detect + embed + store
-  POST   /api/search        upload 1 selfie -> return matching photos
-  GET    /api/photos/{id}   serve a stored image
-  GET    /api/gallery       list indexed photos (id, filename, face count)
-  POST   /api/download      zip up selected photo ids
-  DELETE /api/photos/{id}   remove a single photo + its faces
-  GET    /api/stats         gallery + face counts
-  POST   /api/people/rebuild  auto-group faces into people (clustering)
-  GET    /api/people        list people with their photos
-  PATCH  /api/people/{id}   rename a person
+  POST   /api/photos        [admin] upload photos -> detect + embed + store
+  POST   /api/search        [user]  upload 1 selfie + name -> your photos only
+  GET    /api/photos/{id}   serve a stored image (admin token or detection token)
+  GET    /api/gallery       [admin] list indexed photos (id, filename, faces)
+  POST   /api/download      zip up photo ids (admin, or user's own via ?t=token)
+  DELETE /api/photos/{id}   [admin] remove a single photo + its faces
+  GET    /api/stats         [admin] gallery + face counts
+  GET    /api/detections    [admin] who found themselves (name + photo counts)
+  POST   /api/people/rebuild  [admin] auto-group faces into people (clustering)
+  GET    /api/people        [admin] list people with their photos
+  PATCH  /api/people/{id}   [admin] rename a person
   GET    /healthz           liveness probe
-  DELETE /api/reset         wipe gallery + all face data
+  DELETE /api/reset         [admin] wipe gallery + all face data
 
 Recognition uses brute-force cosine (dot product on L2-normalized vectors)
 over all stored faces in NumPy — fast to ~100k faces, no vector DB needed.
@@ -23,11 +24,13 @@ from __future__ import annotations
 
 import io
 import os
+import uuid
 import zipfile
 
 import cv2
 import numpy as np
-from fastapi import Body, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import (Body, FastAPI, File, Form, Header, HTTPException, Query,
+                     UploadFile)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -58,9 +61,19 @@ app.add_middleware(
 )
 
 
+def _is_admin(token: str | None) -> bool:
+    """True if the supplied token matches the configured admin token.
+
+    When no admin token is configured (dev), everyone is treated as admin.
+    """
+    if not ADMIN_TOKEN:
+        return True
+    return token == ADMIN_TOKEN
+
+
 def _require_admin(x_admin_token: str | None) -> None:
-    """Gate destructive actions behind a token when one is configured."""
-    if ADMIN_TOKEN and x_admin_token != ADMIN_TOKEN:
+    """Gate admin-only actions behind the admin token."""
+    if not _is_admin(x_admin_token):
         raise HTTPException(status_code=401, detail="Admin token required.")
 
 
@@ -91,7 +104,9 @@ async def _embed_async(img: np.ndarray):
 
 
 @app.post("/api/photos")
-async def upload_photos(files: list[UploadFile] = File(...)):
+async def upload_photos(files: list[UploadFile] = File(...),
+                        x_admin_token: str | None = Header(default=None)):
+    _require_admin(x_admin_token)
     if len(files) > MAX_FILES_PER_REQUEST:
         raise HTTPException(
             status_code=413,
@@ -129,13 +144,18 @@ async def upload_photos(files: list[UploadFile] = File(...)):
 
 
 @app.post("/api/search")
-async def search(file: UploadFile = File(...), threshold: float = 0.45):
-    """Return every photo containing the person in the uploaded selfie.
+async def search(file: UploadFile = File(...),
+                 name: str = Form(...),
+                 threshold: float = 0.45):
+    """User flow: 'find my photos'. Returns ONLY the photos this person appears
+    in, and records a detection so the admin can see who found themselves.
 
     SFace's baseline cosine threshold is ~0.363; we default a bit higher
     (0.45) to cut false positives, and expose it as a tunable parameter.
     """
-    engine = get_engine()
+    name = (name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Please enter your name.")
     raw = await file.read()
     if len(raw) > MAX_FILE_BYTES:
         raise HTTPException(
@@ -145,11 +165,13 @@ async def search(file: UploadFile = File(...), threshold: float = 0.45):
     query_faces = await _embed_async(img)
     if not query_faces:
         return {"matches": [], "total": 0, "threshold": threshold,
-                "message": "No face detected in the reference image."}
+                "message": "No face detected in your selfie. Try a clearer, "
+                           "well-lit photo facing the camera."}
 
     # Use the most confident face in the selfie as the query.
     q = max(query_faces, key=lambda fc: fc.score).embedding
 
+    token = uuid.uuid4().hex
     with db.get_db() as conn:
         best: dict[int, float] = {}
         for photo_id, emb in db.all_face_embeddings(conn):
@@ -157,16 +179,35 @@ async def search(file: UploadFile = File(...), threshold: float = 0.45):
             if sim >= threshold and sim > best.get(photo_id, -1.0):
                 best[photo_id] = sim
 
+        det_id = db.create_detection(conn, name, token)
+        for pid, sim in best.items():
+            db.add_detection_photo(conn, det_id, pid, sim)
+        conn.commit()
+
     matches = sorted(
-        ({"photo_id": p, "url": f"/api/photos/{p}", "similarity": round(s, 4)}
+        ({"photo_id": p,
+          "url": f"/api/photos/{p}?t={token}",
+          "similarity": round(s, 4)}
          for p, s in best.items()),
         key=lambda r: r["similarity"], reverse=True,
     )
-    return {"matches": matches, "total": len(matches), "threshold": threshold}
+    return {"matches": matches, "total": len(matches),
+            "threshold": threshold, "token": token, "name": name}
 
 
 @app.get("/api/photos/{photo_id}")
-def get_photo(photo_id: int):
+def get_photo(photo_id: int,
+              t: str | None = Query(default=None),
+              x_admin_token: str | None = Header(default=None)):
+    # Access rules: admin (header or ?t=admintoken) can view any photo; a user
+    # can only view photos contained in their own detection (via ?t=token).
+    token = x_admin_token or t
+    allowed = _is_admin(token)
+    if not allowed and t:
+        with db.get_db() as conn:
+            allowed = db.photo_in_detection(conn, t, photo_id)
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Not authorized.")
     with db.get_db() as conn:
         row = db.get_photo(conn, photo_id)
     if row is None:
@@ -187,14 +228,15 @@ def delete_photo(photo_id: int,
 
 
 @app.get("/api/gallery")
-def gallery():
+def gallery(x_admin_token: str | None = Header(default=None)):
+    _require_admin(x_admin_token)
     with db.get_db() as conn:
         photos = db.list_photos(conn)
         face_counts = db.photo_face_counts(conn)
     return {
         "photos": [
             {"photo_id": p["id"], "filename": p["filename"],
-             "url": f"/api/photos/{p['id']}",
+             "url": f"/api/photos/{p['id']}?t={ADMIN_TOKEN}",
              "faces": face_counts.get(p["id"], 0)}
             for p in photos
         ]
@@ -202,14 +244,32 @@ def gallery():
 
 
 @app.post("/api/download")
-def download(photo_ids: list[int] = Body(..., embed=True)):
-    """Bundle the given photo ids into a single ZIP download."""
+def download(photo_ids: list[int] = Body(..., embed=True),
+             t: str | None = Query(default=None),
+             x_admin_token: str | None = Header(default=None)):
+    """Bundle the given photo ids into a single ZIP download.
+
+    Admins can download anything; a user must supply their detection token (?t=)
+    and may only download photos contained in that detection.
+    """
     if not photo_ids:
         raise HTTPException(status_code=400, detail="No photo ids provided.")
+    token = x_admin_token or t
+    admin = _is_admin(token)
+    allowed_ids: set[int] | None = None
+    if not admin:
+        if not t:
+            raise HTTPException(status_code=403, detail="Not authorized.")
+        with db.get_db() as conn:
+            allowed_ids = set(db.detection_photo_ids(conn, t))
+        if not allowed_ids:
+            raise HTTPException(status_code=403, detail="Not authorized.")
     buf = io.BytesIO()
     seen_names: set[str] = set()
     with db.get_db() as conn, zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
         for pid in photo_ids:
+            if allowed_ids is not None and pid not in allowed_ids:
+                continue
             row = db.get_photo(conn, pid)
             if row is None:
                 continue
@@ -228,9 +288,23 @@ def download(photo_ids: list[int] = Body(..., embed=True)):
 
 
 @app.get("/api/stats")
-def stats():
+def stats(x_admin_token: str | None = Header(default=None)):
+    _require_admin(x_admin_token)
     photos, faces = _stats()
     return {"total_photos": photos, "total_faces": faces}
+
+
+@app.get("/api/detections")
+def detections(x_admin_token: str | None = Header(default=None)):
+    """Admin view: every user who ran 'find my photos', with their counts."""
+    _require_admin(x_admin_token)
+    with db.get_db() as conn:
+        items = db.list_detections(conn)
+    for it in items:
+        it["photos"] = [{"photo_id": p,
+                         "url": f"/api/photos/{p}?t={ADMIN_TOKEN}"}
+                        for p in it["photo_ids"]]
+    return {"detections": items, "total": len(items)}
 
 
 @app.get("/healthz")
@@ -332,7 +406,8 @@ async def rebuild_people(x_admin_token: str | None = Header(default=None)):
 
 
 @app.get("/api/people")
-def list_people():
+def list_people(x_admin_token: str | None = Header(default=None)):
+    _require_admin(x_admin_token)
     with db.get_db() as conn:
         rows = db.list_people(conn)
         out = []
@@ -344,9 +419,10 @@ def list_people():
                 "name": r["name"],
                 "face_count": r["face_count"],
                 "photo_count": r["photo_count"],
-                "cover_url": f"/api/photos/{r['rep_photo_id']}",
+                "cover_url": f"/api/photos/{r['rep_photo_id']}?t={ADMIN_TOKEN}",
                 "photo_ids": photo_ids,
-                "photos": [{"photo_id": p, "url": f"/api/photos/{p}"}
+                "photos": [{"photo_id": p,
+                            "url": f"/api/photos/{p}?t={ADMIN_TOKEN}"}
                            for p in photo_ids],
             })
     return {"people": out, "total": len(out)}
