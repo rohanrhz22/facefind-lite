@@ -1,0 +1,9 @@
+# Models and local data
+backend/models/
+backend/facefind.db
+backend/debug_uploads/
+/data/
+testdata/
+debugtest/
+__pycache__/
+*.pyc

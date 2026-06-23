@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FaceFind Lite — Ultra Low-Cost Face Recognition · Build Documentation</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --card: #161f3d;
+    --card-2: #1b2547;
+    --text: #e8ecf8;
+    --muted: #9aa6c7;
+    --brand: #6d83ff;
+    --brand-2: #a779ff;
+    --accent: #28d4a7;
+    --warn: #ffb454;
+    --danger: #ff6b81;
+    --line: rgba(255,255,255,.08);
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 700px at 80% -10%, #14352b 0%, transparent 60%),
+                radial-gradient(1000px 600px at -10% 10%, #1d2a5a 0%, transparent 55%),
+                var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+  }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .wrap { display: grid; grid-template-columns: 280px 1fr; gap: 0; max-width: 1400px; margin: 0 auto; }
+  nav.sidebar {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    padding: 28px 20px; border-right: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,255,255,.02), transparent);
+  }
+  nav .logo { font-weight: 800; font-size: 22px; letter-spacing: .5px; margin-bottom: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--brand)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  nav .tag { color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+  nav a { display: block; color: var(--muted); padding: 7px 10px; border-radius: 8px; font-size: 14px; }
+  nav a:hover { background: var(--card); color: var(--text); text-decoration: none; }
+  nav .group { margin: 16px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6f7aa0; }
+
+  main { padding: 40px 48px 100px; max-width: 1050px; }
+
+  .hero { padding: 36px 38px; border-radius: 20px; border: 1px solid var(--line);
+    background: linear-gradient(135deg, rgba(40,212,167,.18), rgba(109,131,255,.10));
+    box-shadow: var(--shadow); margin-bottom: 40px; }
+  .hero h1 { font-size: 40px; margin: 0 0 8px; }
+  .hero p { font-size: 17px; color: var(--muted); margin: 0 0 18px; max-width: 760px; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { font-size: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06);
+    border: 1px solid var(--line); color: var(--text); }
+
+  section { margin-bottom: 48px; scroll-margin-top: 20px; }
+  h2 { font-size: 26px; margin: 0 0 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  h2 .num { color: var(--accent); font-weight: 700; margin-right: 10px; }
+  h3 { font-size: 18px; margin: 26px 0 8px; color: #cdd6f5; }
+  p { color: #d4dbf0; }
+  .lead { color: var(--muted); }
+
+  .grid { display: grid; gap: 16px; }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+  .card { background: linear-gradient(180deg, var(--card), var(--card-2)); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .card h4 { margin: 0 0 6px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .card p { margin: 0; font-size: 14px; color: var(--muted); }
+  .ico { width: 30px; height: 30px; border-radius: 8px; display: inline-grid; place-items: center;
+    background: rgba(40,212,167,.18); font-size: 16px; }
+
+  ul.clean { list-style: none; padding: 0; margin: 10px 0; }
+  ul.clean li { padding: 8px 0 8px 26px; position: relative; border-bottom: 1px dashed var(--line); font-size: 14.5px; }
+  ul.clean li:before { content: "▹"; position: absolute; left: 4px; color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--accent); font-weight: 600; background: rgba(255,255,255,.02); }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .best { color: var(--accent); font-weight: 700; }
+  .free { color: var(--accent); font-weight: 700; }
+
+  .tag-chip { display: inline-block; font-size: 11.5px; padding: 3px 9px; border-radius: 6px; margin: 2px;
+    background: rgba(40,212,167,.12); color: var(--accent); border: 1px solid rgba(40,212,167,.25); }
+  .tag-chip.b { background: rgba(109,131,255,.12); color: #9fb0ff; border-color: rgba(109,131,255,.25); }
+  .tag-chip.p { background: rgba(167,121,255,.12); color: #c6a6ff; border-color: rgba(167,121,255,.25); }
+  .tag-chip.w { background: rgba(255,180,84,.12); color: var(--warn); border-color: rgba(255,180,84,.25); }
+
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 18px 0; }
+  .flow .step { flex: 1 1 0; min-width: 120px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px; text-align: center; }
+  .flow .step .n { font-size: 12px; color: var(--accent); font-weight: 700; }
+  .flow .step .t { font-size: 13px; margin-top: 4px; }
+  .flow .arrow { display: grid; place-items: center; color: var(--muted); padding: 0 6px; font-size: 20px; }
+
+  pre { background: #0a0f22; border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+    overflow-x: auto; font-size: 12.5px; color: #c9d4f5; line-height: 1.55; }
+  code { font-family: "SF Mono", Consolas, monospace; }
+  .inline { background: rgba(255,255,255,.07); padding: 2px 6px; border-radius: 5px; font-size: 13px; }
+
+  .callout { border-left: 4px solid var(--accent); background: rgba(40,212,167,.07);
+    padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 16px 0; }
+  .callout.brand { border-color: var(--brand); background: rgba(109,131,255,.07); }
+  .callout.warn { border-color: var(--warn); background: rgba(255,180,84,.07); }
+
+  .kpi { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin: 18px 0; }
+  .kpi .box { text-align: center; padding: 18px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+  .kpi .big { font-size: 26px; font-weight: 800; background: linear-gradient(90deg,var(--accent),var(--brand));
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .kpi .lbl { font-size: 12px; color: var(--muted); }
+
+  .badge { display:inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin-left:8px;
+    background: rgba(40,212,167,.15); color: var(--accent); border:1px solid rgba(40,212,167,.3); vertical-align: middle;}
+
+  footer { border-top: 1px solid var(--line); padding-top: 20px; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 980px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    main { padding: 28px 20px 80px; }
+    .grid.cols-2, .grid.cols-3, .kpi { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="sidebar">
+    <div class="logo">FaceFind Lite</div>
+    <div class="tag">Ultra Low-Cost Build · Docs</div>
+    <div class="group">Product</div>
+    <a href="#summary">1. Overview</a>
+    <a href="#goal">2. The Cost Goal</a>
+    <a href="#how">3. How It Works</a>
+    <div class="group">Cheap Build</div>
+    <a href="#strategy">4. Low-Cost Strategy</a>
+    <a href="#stack">5. Free-Tier Tech Stack</a>
+    <a href="#architecture">6. Architecture</a>
+    <a href="#tiers">7. Cost Tiers ($0 → $5)</a>
+    <a href="#api">8. API Design</a>
+    <a href="#data">9. Data Model</a>
+    <a href="#code">10. Reference Code</a>
+    <a href="#steps">11. Step-by-Step Build</a>
+    <div class="group">Quality & Cost</div>
+    <a href="#accuracy">12. Accuracy Rates</a>
+    <a href="#cost">13. Monthly Cost</a>
+    <a href="#scaling">14. Scaling & Limits</a>
+    <a href="#privacy">15. Privacy & Security</a>
+    <div class="group">Business</div>
+    <a href="#market">16. Market Scope</a>
+    <a href="#monetization">17. Monetization</a>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <h1>FaceFind Lite</h1>
+      <p>The same "upload photos → find a person" face-recognition app, re-engineered to run at <strong>near-zero cost</strong> using free tiers, open-source models, and a browser-first design. Start at <strong>$0/month</strong> and scale only when you earn revenue.</p>
+      <div class="pill-row">
+        <span class="pill">💸 $0 to start</span>
+        <span class="pill">🧠 Open-source models (free)</span>
+        <span class="pill">🌐 Runs in-browser (optional)</span>
+        <span class="pill">☁️ Free-tier hosting</span>
+        <span class="pill">🎯 ~99% accuracy</span>
+      </div>
+    </div>
+
+    <!-- 1 -->
+    <section id="summary">
+      <h2><span class="num">01</span>Overview</h2>
+      <p><strong>FaceFind Lite</strong> delivers the identical feature — upload a gallery and one reference selfie, get back every photo of that person — but optimizes every layer for cost. It does this with three big levers: <strong>(1)</strong> use free open-source face models (zero per-call fees), <strong>(2)</strong> run on free hosting tiers / a single cheap box, and <strong>(3)</strong> optionally push the AI into the user's browser so you pay almost nothing for compute.</p>
+      <div class="kpi">
+        <div class="box"><div class="big">$0</div><div class="lbl">Starter monthly cost</div></div>
+        <div class="box"><div class="big">$0–5</div><div class="lbl">Cost at light real use</div></div>
+        <div class="box"><div class="big">~99%</div><div class="lbl">Accuracy (good photos)</div></div>
+        <div class="box"><div class="big">0¢</div><div class="lbl">Per-recognition fee</div></div>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="goal">
+      <h2><span class="num">02</span>The Cost Goal</h2>
+      <p class="lead">Every paid component in a typical face app is replaceable with a free equivalent. Here is the swap-out plan:</p>
+      <table>
+        <tr><th>Usual paid piece</th><th>Costs money because…</th><th>Free replacement</th></tr>
+        <tr><td>Cloud face API (Rekognition)</td><td>charges per image/search</td><td class="free">InsightFace / face-api.js (open source, $0)</td></tr>
+        <tr><td>Dedicated GPU server</td><td>expensive hourly compute</td><td class="free">CPU inference or in-browser WASM</td></tr>
+        <tr><td>Managed vector DB (Pinecone)</td><td>monthly subscription</td><td class="free">SQLite + NumPy / FAISS / pgvector free tier</td></tr>
+        <tr><td>Paid app hosting</td><td>always-on server cost</td><td class="free">Render/Fly/HF Spaces free tier</td></tr>
+        <tr><td>Paid object storage</td><td>storage + egress fees</td><td class="free">Cloudflare R2 free tier / browser memory</td></tr>
+      </table>
+      <div class="callout"><strong>Result:</strong> a fully working app where your only unavoidable cost is a domain name (~$1/mo), and even that is optional during prototyping.</div>
+    </section>
+
+    <!-- 3 -->
+    <section id="how">
+      <h2><span class="num">03</span>How It Works (same core)</h2>
+      <div class="grid cols-3">
+        <div class="card"><h4><span class="ico">🟦</span> 1. Detect</h4><p>Find every face in each photo and crop + align it.</p></div>
+        <div class="card"><h4><span class="ico">🧬</span> 2. Embed</h4><p>Turn each face into a numeric "fingerprint" vector (128 or 512 numbers).</p></div>
+        <div class="card"><h4><span class="ico">📐</span> 3. Compare</h4><p>Cosine similarity between the query face and stored faces → above threshold = match.</p></div>
+      </div>
+      <div class="callout brand"><strong>Same maths, cheaper plumbing.</strong> The recognition logic is identical to a premium build — we only change <em>where</em> it runs and <em>what</em> stores the vectors so the bill stays at zero.</div>
+    </section>
+
+    <!-- 4 -->
+    <section id="strategy">
+      <h2><span class="num">04</span>Low-Cost Strategy — Three Patterns</h2>
+      <table>
+        <tr><th>Pattern</th><th>Where AI runs</th><th>Cost</th><th>Best for</th></tr>
+        <tr><td><strong>A · Browser-only</strong> <span class="badge">cheapest</span></td><td>User's device (face-api.js, WASM)</td><td class="free">~$0 — just static hosting</td><td>Small galleries, demos, privacy-first</td></tr>
+        <tr><td><strong>B · Free-tier server</strong> <span class="badge">recommended</span></td><td>Python on Render/Fly/HF free tier</td><td class="free">$0–5</td><td>Real product MVP</td></tr>
+        <tr><td><strong>C · One cheap VPS</strong></td><td>$4–6/mo box (always on)</td><td>$4–6</td><td>Steady traffic, no cold starts</td></tr>
+      </table>
+      <div class="callout accent"><strong>Recommended path:</strong> start with <strong>Pattern A (browser)</strong> to validate for literally $0, then graduate to <strong>Pattern B (free-tier server)</strong> when you need to index larger galleries and persist data.</div>
+    </section>
+
+    <!-- 5 -->
+    <section id="stack">
+      <h2><span class="num">05</span>Free-Tier Tech Stack</h2>
+      <div class="grid cols-2">
+        <div class="card">
+          <h4><span class="ico">🧠</span> AI (free, open source)</h4>
+          <p style="margin-top:8px">
+            <span class="tag-chip">face-api.js (browser)</span><span class="tag-chip">InsightFace (server)</span>
+            <span class="tag-chip">ONNX Runtime</span><span class="tag-chip">OpenCV</span>
+            <span class="tag-chip">NumPy</span>
+          </p>
+        </div>
+        <div class="card">
+          <h4><span class="ico">⚙️</span> Backend (optional)</h4>
+          <p style="margin-top:8px">
+            <span class="tag-chip b">Python + FastAPI</span><span class="tag-chip b">SQLite</span>
+            <span class="tag-chip b">Uvicorn</span><span class="tag-chip b">Pillow</span>
+          </p>
+        </div>
+        <div class="card">
+          <h4><span class="ico">🗄️</span> Storage &amp; Vectors (free)</h4>
+          <p style="margin-top:8px">
+            <span class="tag-chip p">SQLite + NumPy</span><span class="tag-chip p">FAISS (local)</span>
+            <span class="tag-chip p">Supabase free tier (pgvector)</span><span class="tag-chip p">Cloudflare R2 free</span>
+          </p>
+        </div>
+        <div class="card">
+          <h4><span class="ico">🎨</span> Frontend (free)</h4>
+          <p style="margin-top:8px">
+            <span class="tag-chip w">React / plain HTML+JS</span><span class="tag-chip w">Tailwind (CDN)</span>
+            <span class="tag-chip w">Vite</span>
+          </p>
+        </div>
+        <div class="card">
+          <h4><span class="ico">🚀</span> Hosting (free tier)</h4>
+          <p style="margin-top:8px">
+            <span class="tag-chip">Hugging Face Spaces</span><span class="tag-chip">Render free</span>
+            <span class="tag-chip">Fly.io free</span><span class="tag-chip">Vercel / Netlify (frontend)</span>
+            <span class="tag-chip">GitHub Pages</span>
+          </p>
+        </div>
+        <div class="card">
+          <h4><span class="ico">🧰</span> Tooling (free)</h4>
+          <p style="margin-top:8px">
+            <span class="tag-chip b">Docker</span><span class="tag-chip b">GitHub Actions CI</span>
+            <span class="tag-chip b">Cloudflare (CDN/TLS)</span>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="architecture">
+      <h2><span class="num">06</span>Architecture (both modes)</h2>
+      <h3>Mode A — Browser-only ($0)</h3>
+      <pre><code>┌───────────────────────────────────────────────┐
+│              User's Browser                    │
+│  React UI                                      │
+│   ├─ face-api.js (TensorFlow.js / WASM)        │
+│   ├─ detect + embed photos locally             │
+│   └─ compare query vs gallery in JS            │
+└───────────────────────────────────────────────┘
+        ▲ served as static files
+        │
+  Free static host (GitHub Pages / Netlify / Vercel)
+  → No backend, no per-use cost, photos never leave device.</code></pre>
+
+      <h3>Mode B — Free-tier server (recommended)</h3>
+      <pre><code>┌──────────────┐   HTTPS   ┌─────────────────────────────┐
+│ React frontend│ ───────▶ │  FastAPI (free tier dyno)    │
+│ (Vercel free) │ ◀─────── │  InsightFace (CPU, ONNX)     │
+└──────────────┘           │  + SQLite (vectors + meta)   │
+        │ upload                └──────────────┬─────────────┘
+        ▼                                       │
+  Cloudflare R2 free tier  ◀────── store originals (or keep in SQLite/disk)</code></pre>
+      <div class="callout warn"><strong>Cold starts:</strong> free dynos sleep when idle and take a few seconds to wake. Acceptable for an MVP; upgrade to a $5 VPS (Pattern C) to remove them.</div>
+    </section>
+
+    <!-- 7 -->
+    <section id="tiers">
+      <h2><span class="num">07</span>Cost Tiers — From $0 to $5</h2>
+      <div class="flow">
+        <div class="step"><div class="n">TIER 0 · $0</div><div class="t">Browser-only, static host. Validate the idea free.</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">TIER 1 · $0</div><div class="t">Free-tier server (HF Spaces/Render) + SQLite + R2 free.</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">TIER 2 · ~$5</div><div class="t">One small VPS, always-on, no cold starts.</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">TIER 3 · $15+</div><div class="t">Bigger box / managed DB when revenue justifies it.</div></div>
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section id="api">
+      <h2><span class="num">08</span>API Design (Mode B)</h2>
+      <table>
+        <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
+        <tr><td><span class="inline">/api/photos</span></td><td>POST</td><td>Upload photos → detect + embed + store in SQLite</td></tr>
+        <tr><td><span class="inline">/api/search</span></td><td>POST</td><td>Upload 1 selfie → return matching photos</td></tr>
+        <tr><td><span class="inline">/api/photos/{id}</span></td><td>GET</td><td>Serve an image</td></tr>
+        <tr><td><span class="inline">/api/reset</span></td><td>DELETE</td><td>Clear gallery + all face data</td></tr>
+      </table>
+      <pre><code>POST /api/search   (multipart: file=selfie.jpg)
+
+{
+  "matches": [
+    { "photo_id": 18,  "url": "/api/photos/18",  "similarity": 0.81 },
+    { "photo_id": 141, "url": "/api/photos/141", "similarity": 0.69 }
+  ],
+  "total": 2,
+  "threshold": 0.5
+}</code></pre>
+    </section>
+
+    <!-- 9 -->
+    <section id="data">
+      <h2><span class="num">09</span>Data Model (SQLite — zero cost)</h2>
+      <pre><code>-- photos table
+CREATE TABLE photo (
+  id          INTEGER PRIMARY KEY,
+  filename    TEXT,
+  data        BLOB,          -- store image (or path to R2/disk)
+  created_at  TEXT
+);
+
+-- one row per detected face
+CREATE TABLE face (
+  id          INTEGER PRIMARY KEY,
+  photo_id    INTEGER REFERENCES photo(id),
+  bbox        TEXT,          -- JSON [x,y,w,h]
+  embedding   BLOB           -- 512 float32 packed bytes (np.tobytes)
+);</code></pre>
+      <p class="lead">For small/medium galleries, brute-force cosine in NumPy over all stored vectors is fast enough (thousands of faces in milliseconds) — no vector database needed. Add <strong>FAISS</strong> only past ~100k faces.</p>
+    </section>
+
+    <!-- 10 -->
+    <section id="code">
+      <h2><span class="num">10</span>Reference Code</h2>
+
+      <h3>Mode B — Server (FastAPI + InsightFace + SQLite + NumPy)</h3>
+      <pre><code>import numpy as np, sqlite3, io
+from insightface.app import FaceAnalysis
+from PIL import Image
+
+model = FaceAnalysis(name="buffalo_l")     # free, ~99% accuracy
+model.prepare(ctx_id=-1, det_size=(640, 640))   # CPU
+
+def embed_faces(img_bgr):
+    return [(f.bbox.tolist(), f.normed_embedding.astype("float32"))
+            for f in model.get(img_bgr)]
+
+def index_photo(db, photo_id, img_bgr):
+    for bbox, emb in embed_faces(img_bgr):
+        db.execute("INSERT INTO face(photo_id,bbox,embedding) VALUES (?,?,?)",
+                   (photo_id, str(bbox), emb.tobytes()))
+    db.commit()
+
+def search(db, query_img_bgr, threshold=0.5):
+    faces = embed_faces(query_img_bgr)
+    if not faces: return []
+    q = faces[0][1]                                  # query vector (already L2-normalized)
+    rows = db.execute("SELECT photo_id, embedding FROM face").fetchall()
+    best = {}
+    for photo_id, emb_bytes in rows:
+        v = np.frombuffer(emb_bytes, dtype="float32")
+        sim = float(np.dot(q, v))                    # cosine (vectors normalized)
+        if sim &gt;= threshold and sim &gt; best.get(photo_id, 0):
+            best[photo_id] = sim
+    return sorted(({"photo_id": p, "similarity": s} for p, s in best.items()),
+                  key=lambda r: r["similarity"], reverse=True)</code></pre>
+
+      <h3>Mode A — Browser-only (face-api.js, $0 backend)</h3>
+      <pre><code>import * as faceapi from 'face-api.js';
+
+// Load free models once (host the weights as static files)
+await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
+await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+
+// Build descriptors (128-d) for every gallery image — all in the browser
+async function describe(imgEl) {
+  return faceapi.detectAllFaces(imgEl)
+    .withFaceLandmarks().withFaceDescriptors();
+}
+
+// Find the query person across the gallery
+function findMatches(queryDescriptor, gallery, threshold = 0.5) {
+  const matches = [];
+  for (const item of gallery) {            // item = { photoId, descriptors[] }
+    for (const d of item.descriptors) {
+      const dist = faceapi.euclideanDistance(queryDescriptor, d);
+      if (dist &lt; (1 - threshold)) {        // smaller distance = better match
+        matches.push({ photoId: item.photoId, score: 1 - dist });
+        break;
+      }
+    }
+  }
+  return matches.sort((a, b) =&gt; b.score - a.score);
+}</code></pre>
+      <div class="callout accent"><strong>Mode A pays nothing for compute</strong> — the user's phone/laptop does the recognition. You only host a few megabytes of model files on a free static host.</div>
+    </section>
+
+    <!-- 11 -->
+    <section id="steps">
+      <h2><span class="num">11</span>Step-by-Step Build (cheapest path)</h2>
+      <ul class="clean">
+        <li><strong>1. Prototype free (Tier 0):</strong> static React + face-api.js page, drag-drop gallery + selfie, show matches — host on GitHub Pages/Netlify for $0.</li>
+        <li><strong>2. Add a free backend (Tier 1):</strong> FastAPI + InsightFace + SQLite, deploy to Hugging Face Spaces or Render free tier.</li>
+        <li><strong>3. Storage:</strong> keep images in SQLite/disk for the MVP, or Cloudflare R2 free tier (no egress fees).</li>
+        <li><strong>4. Vectors:</strong> brute-force NumPy cosine; add FAISS only when galleries get huge.</li>
+        <li><strong>5. Frontend host:</strong> Vercel/Netlify free; point it at the backend URL.</li>
+        <li><strong>6. Domain + TLS:</strong> Cloudflare free TLS; buy a domain (~$10/yr) only when going public.</li>
+        <li><strong>7. Privacy:</strong> add consent + a "delete everything" button (one SQL wipe).</li>
+        <li><strong>8. Upgrade only on demand:</strong> move to a $5 VPS (Tier 2) when cold starts or volume hurt.</li>
+      </ul>
+    </section>
+
+    <!-- 12 -->
+    <section id="accuracy">
+      <h2><span class="num">12</span>Accuracy Rates (free models)</h2>
+      <table>
+        <tr><th>Free model</th><th>Benchmark accuracy</th><th>Notes</th></tr>
+        <tr><td>InsightFace / ArcFace (buffalo_l)</td><td class="best">~99.8% (LFW)</td><td>Best free option; use server-side.</td></tr>
+        <tr><td>dlib / face_recognition</td><td>~99.4% (LFW)</td><td>Easiest to install; weaker on angles.</td></tr>
+        <tr><td>face-api.js (browser)</td><td>~99.4% (LFW)</td><td>Runs in-browser; great for $0 demos.</td></tr>
+      </table>
+      <div class="callout warn"><strong>Reality check:</strong> benchmarks are near-perfect; expect <strong>~90–96%</strong> in real galleries. Browser models are slightly lighter/faster but a bit less robust on hard angles, poor light and tiny faces than server-side InsightFace. Let users add 2–3 reference selfies and tune the threshold to recover accuracy for free.</div>
+    </section>
+
+    <!-- 13 -->
+    <section id="cost">
+      <h2><span class="num">13</span>Monthly Cost Breakdown</h2>
+      <table>
+        <tr><th>Component</th><th>Free option used</th><th>Monthly cost</th></tr>
+        <tr><td>Face recognition model</td><td>InsightFace / face-api.js (open source)</td><td class="free">$0</td></tr>
+        <tr><td>Compute</td><td>Browser (Mode A) or free dyno (Mode B)</td><td class="free">$0</td></tr>
+        <tr><td>Database / vectors</td><td>SQLite + NumPy (or Supabase free)</td><td class="free">$0</td></tr>
+        <tr><td>Image storage</td><td>Disk / Cloudflare R2 free tier</td><td class="free">$0</td></tr>
+        <tr><td>Frontend hosting</td><td>Vercel / Netlify / GitHub Pages free</td><td class="free">$0</td></tr>
+        <tr><td>TLS / CDN</td><td>Cloudflare free</td><td class="free">$0</td></tr>
+        <tr><td>Domain (optional)</td><td>Namecheap etc.</td><td>~$1/mo</td></tr>
+        <tr><td class="best">TOTAL (MVP)</td><td>Everything on free tiers</td><td class="best">$0 – $1 / mo</td></tr>
+        <tr><td>When you outgrow free</td><td>1 small VPS (4–6 USD) </td><td>~$5 / mo</td></tr>
+      </table>
+      <div class="callout"><strong>Bottom line:</strong> you can run a real, working face-finder for <strong>$0–$5/month</strong> until traffic is high enough that paying customers easily cover an upgrade.</div>
+    </section>
+
+    <!-- 14 -->
+    <section id="scaling">
+      <h2><span class="num">14</span>Scaling &amp; Free-Tier Limits</h2>
+      <ul class="clean">
+        <li><strong>Cold starts:</strong> free dynos sleep — first request after idle is slow. Fix with a $5 always-on VPS or a cheap cron ping.</li>
+        <li><strong>RAM limits:</strong> free tiers cap memory (often ~512 MB–1 GB); load one model and process images in small batches.</li>
+        <li><strong>CPU speed:</strong> CPU inference ≈ 0.1–0.5s per image — fine for hundreds of photos; batch with a queue for thousands.</li>
+        <li><strong>Brute-force search limit:</strong> NumPy cosine is fine to ~100k faces; beyond that add FAISS (still free) or pgvector.</li>
+        <li><strong>Storage egress:</strong> prefer Cloudflare R2 (zero egress fees) over services that charge for downloads.</li>
+      </ul>
+    </section>
+
+    <!-- 15 -->
+    <section id="privacy">
+      <h2><span class="num">15</span>Privacy &amp; Security</h2>
+      <div class="grid cols-2">
+        <div class="card"><h4>🔒 Browser = max privacy</h4><p>In Mode A photos never leave the device — the strongest privacy story and it's also the cheapest.</p></div>
+        <div class="card"><h4>📜 Consent</h4><p>Face data is biometric/sensitive — get explicit consent and show a clear notice.</p></div>
+        <div class="card"><h4>⏳ Retention</h4><p>Auto-wipe galleries after a TTL; offer one-click delete (a single SQL <span class="inline">DELETE</span>).</p></div>
+        <div class="card"><h4>⚖️ Regulation</h4><p>GDPR, BIPA (US-Illinois) and India's DPDP Act govern biometric data — build deletion in from day one.</p></div>
+      </div>
+    </section>
+
+    <!-- 16 -->
+    <section id="market">
+      <h2><span class="num">16</span>Market Scope</h2>
+      <p>A $0-cost build means you can chase price-sensitive niches profitably and undercut paid competitors.</p>
+      <div class="grid cols-3">
+        <div class="card"><h4>💍 Small events</h4><p>Budget weddings, parties, community functions — guests find their photos free.</p></div>
+        <div class="card"><h4>🏃 Local races / clubs</h4><p>Runners &amp; club members self-find photos; monetize downloads.</p></div>
+        <div class="card"><h4>🎓 Schools / colleges</h4><p>Distribute fest/event photos to students cheaply.</p></div>
+        <div class="card"><h4>📸 Freelance photographers</h4><p>A free tool to sort shoots by person and impress clients.</p></div>
+        <div class="card"><h4>🗂️ Personal archives</h4><p>"Find all photos of X" in a family library — fully offline (Mode A).</p></div>
+        <div class="card"><h4>🧪 Indie / portfolio</h4><p>A polished free demo to showcase AI skills or seed a startup.</p></div>
+      </div>
+      <div class="callout brand"><strong>Edge:</strong> because your cost per user is near zero, freemium and pay-per-download models have extremely high margins.</div>
+    </section>
+
+    <!-- 17 -->
+    <section id="monetization">
+      <h2><span class="num">17</span>Monetization (with ~zero cost base)</h2>
+      <ul class="clean">
+        <li><strong>Freemium:</strong> free for small galleries (covered by free tiers), paid for larger ones.</li>
+        <li><strong>Pay-per-download:</strong> finding is free; charge for high-res downloads (great margins).</li>
+        <li><strong>Per-event flat fee:</strong> small charge per event/gallery for photographers.</li>
+        <li><strong>Tip/donation or ads:</strong> viable since infra costs nothing.</li>
+        <li><strong>Upsell to hosted plan:</strong> offer a no-cold-start, larger-storage paid tier later.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>FaceFind Lite — ultra low-cost build guide for an AI face-recognition app (upload photos → find a person). Free-tier limits, pricing and accuracy figures are indicative; verify current provider terms and benchmark numbers before launch. Free tiers change — always confirm current quotas.</p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

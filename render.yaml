@@ -1,0 +1,23 @@
+# Render.com — free-tier Docker web service.
+# Deploy: push to GitHub, then "New + > Blueprint" and point at this repo.
+services:
+  - type: web
+    name: facefind-lite
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: FACEFIND_DATA_DIR
+        value: /data
+      # Set a long random value in the Render dashboard to protect reset/delete.
+      - key: FACEFIND_ADMIN_TOKEN
+        sync: false
+    # Free tier has an ephemeral disk; uploads reset on redeploy/sleep.
+    # Add a paid disk for persistence:
+    # disk:
+    #   name: facefind-data
+    #   mountPath: /data
+    #   sizeGB: 1

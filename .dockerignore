@@ -1,0 +1,10 @@
+.git
+.gitignore
+**/__pycache__
+*.pyc
+backend/facefind.db
+backend/debug_uploads
+testdata
+debugtest
+*.md
+FaceFind-Lite-LowCost-Docs.html
